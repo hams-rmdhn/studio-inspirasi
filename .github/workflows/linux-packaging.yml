@@ -31,6 +31,7 @@ jobs:
       - name: Packaging tools (no editor compilation)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq rpm makepkg
+          # makepkg 6 resolves pacman even when only printing SRCINFO.
+          sudo apt-get install -y -qq rpm makepkg pacman-package-manager
       - name: Installer, package layout, AUR metadata and manifest
         run: python3 -m unittest discover -s scripts -p test_linux_packaging.py -v
