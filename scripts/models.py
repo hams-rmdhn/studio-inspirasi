@@ -52,6 +52,10 @@ TABLES = {
 BUNDLES = [
     ("linux", "x86_64", "appimage", "Clovercut-{v}-x86_64.AppImage"),
     ("linux", "aarch64", "appimage", "Clovercut-{v}-aarch64.AppImage"),
+    ("linux", "x86_64", "deb", "Clovercut-{v}-x86_64.deb"),
+    ("linux", "x86_64", "rpm", "Clovercut-{v}-x86_64.rpm"),
+    ("linux", "aarch64", "deb", "Clovercut-{v}-aarch64.deb"),
+    ("linux", "aarch64", "rpm", "Clovercut-{v}-aarch64.rpm"),
     ("windows", "x86_64", "setup", "Clovercut-{v}-windows-x86_64-setup.exe"),
     ("windows", "x86_64", "portable", "Clovercut-{v}-windows-x86_64-portable.zip"),
     ("windows", "aarch64", "setup", "Clovercut-{v}-windows-aarch64-setup.exe"),

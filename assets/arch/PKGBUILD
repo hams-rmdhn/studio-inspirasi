@@ -6,12 +6,12 @@
 # `makepkg --printsrcinfo > .SRCINFO`, then push this directory to AUR.
 pkgname=clovercut-bin
 pkgver=0.1.8
-pkgrel=1
+pkgrel=2
 pkgdesc="Desktop-first, open-source video editor with built-in stock libraries and local AI"
 arch=('x86_64' 'aarch64')
 url="https://github.com/tulcoturo/clovercut"
 license=('AGPL-3.0-or-later')
-depends=('hicolor-icon-theme' 'gtk3' 'fontconfig' 'freetype2' 'libxkbcommon' 'libxkbcommon-x11' 'mesa' 'alsa-lib')
+depends=('glibc' 'hicolor-icon-theme' 'gtk3' 'fontconfig' 'freetype2' 'libxkbcommon' 'libxkbcommon-x11' 'mesa' 'libglvnd' 'alsa-lib')
 options=('!strip' '!debug')
 provides=('clovercut')
 conflicts=('clovercut')
@@ -20,49 +20,27 @@ source_aarch64=("Clovercut-${pkgver}-aarch64.AppImage::https://github.com/tulcot
 sha256sums_x86_64=('bbd35f5f95919bef68794d9f928ba6d39c92f6b090ea356fa3d09460f15a4e98')
 sha256sums_aarch64=('7cca6d1cd3c7f7dbee973d9ec40b1e9ea2ccb23a90b0dbc3ed370d84898578e7')
 
+prepare() {
+  local appimage="${srcdir}/Clovercut-${pkgver}-${CARCH}.AppImage"
+  chmod +x "$appimage"
+  cd "$srcdir"
+  "$appimage" --appimage-extract >/dev/null
+  test -x squashfs-root/AppRun
+  test -f squashfs-root/io.github.tulcoturo.clovercut.desktop
+  test -f squashfs-root/clovercut.png
+}
+
 package() {
-  local appimage
-  if [ "$CARCH" = "aarch64" ]; then
-    appimage="Clovercut-${pkgver}-aarch64.AppImage"
-  else
-    appimage="Clovercut-${pkgver}-x86_64.AppImage"
-  fi
-
-  install -Dm755 "$appimage" "$pkgdir/opt/clovercut/Clovercut.AppImage"
-
-  # Launcher on the PATH. The AppImage carries its own libraries; the
-  # wrapper only forwards arguments.
-  install -d "$pkgdir/usr/bin"
-  printf '#!/bin/sh\nexec /opt/clovercut/Clovercut.AppImage "$@"\n' > "$pkgdir/usr/bin/clovercut"
+  install -d "$pkgdir/opt/clovercut" "$pkgdir/usr/bin"
+  cp -a "$srcdir/squashfs-root/." "$pkgdir/opt/clovercut/"
+  printf '#!/bin/sh\nexec /opt/clovercut/AppRun "$@"\n' > "$pkgdir/usr/bin/clovercut"
   chmod 755 "$pkgdir/usr/bin/clovercut"
-
-  # Desktop entry and icon, extracted from the AppImage itself so they
-  # always match the shipped release. Falls back to a static entry if
-  # extraction ever fails on the build host.
-  if ./"$appimage" --appimage-extract >/dev/null 2>&1; then
-    local desktop
-    desktop=$(find squashfs-root -maxdepth 1 -name '*.desktop' | head -1)
-    if [ -n "$desktop" ]; then
-      install -Dm644 "$desktop" "$pkgdir/usr/share/applications/io.github.tulcoturo.clovercut.desktop"
-    fi
-    local icon
-    icon=$(find squashfs-root -maxdepth 3 \( -name 'clovercut.png' -o -name '.DirIcon' \) | head -1)
-    if [ -n "$icon" ]; then
-      install -Dm644 "$icon" "$pkgdir/usr/share/icons/hicolor/256x256/apps/clovercut.png"
-    fi
-    rm -rf squashfs-root
-  fi
-  if [ ! -f "$pkgdir/usr/share/applications/io.github.tulcoturo.clovercut.desktop" ]; then
-    install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/io.github.tulcoturo.clovercut.desktop" <<'DESKTOP'
-[Desktop Entry]
-Type=Application
-Name=Clovercut
-Comment=Edit video and audio locally
-Exec=clovercut
-Icon=clovercut
-Categories=AudioVideo;Video;
-Terminal=false
-StartupWMClass=io.github.tulcoturo.clovercut
-DESKTOP
-  fi
+  install -Dm644 "$srcdir/squashfs-root/io.github.tulcoturo.clovercut.desktop" \
+    "$pkgdir/usr/share/applications/io.github.tulcoturo.clovercut.desktop"
+  install -Dm644 "$srcdir/squashfs-root/clovercut.png" \
+    "$pkgdir/usr/share/icons/hicolor/256x256/apps/clovercut.png"
+  install -Dm644 "$srcdir/squashfs-root/usr/share/doc/clovercut/LICENSE" \
+    "$pkgdir/usr/share/licenses/clovercut-bin/LICENSE"
+  install -Dm644 "$srcdir/squashfs-root/usr/share/doc/clovercut/THIRD_PARTY_NOTICES.md" \
+    "$pkgdir/usr/share/doc/clovercut-bin/THIRD_PARTY_NOTICES.md"
 }

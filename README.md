@@ -125,16 +125,19 @@ By distro, once native packages are published for your version (`X.Y.Z`):
 curl -fsSLO https://github.com/tulcoturo/clovercut/releases/download/vX.Y.Z/Clovercut-X.Y.Z-x86_64.deb
 sudo apt install ./Clovercut-X.Y.Z-x86_64.deb
 
-# Fedora / RHEL / openSUSE
+# Fedora / RHEL
 curl -fsSLO https://github.com/tulcoturo/clovercut/releases/download/vX.Y.Z/Clovercut-X.Y.Z-x86_64.rpm
 sudo dnf install ./Clovercut-X.Y.Z-x86_64.rpm
+# openSUSE: sudo zypper install ./Clovercut-X.Y.Z-x86_64.rpm
 
-# Arch / CachyOS / Manjaro / EndeavourOS (prebuilt AppImage repackaged, kept on the latest release by CI)
+# Arch / CachyOS / Manjaro / EndeavourOS (prebuilt AppImage repackaged, updated by CI when the AUR maintainer key is configured)
 yay -S clovercut-bin
 # or: paru -S clovercut-bin
 ```
 
-Packagers: `scripts/build-deb.sh` and `scripts/build-rpm.sh` build both formats from the staged Linux folder with only `dpkg-deb` / `rpmbuild` (`assets/linux/nfpm.yaml` keeps the equivalent nfpm description for CI). The AUR package lives in `assets/arch/` (`PKGBUILD` + `.SRCINFO`, package name `clovercut-bin`).
+Packagers: `scripts/build-deb.sh` and `scripts/build-rpm.sh` build both formats from the staged Linux folder with only `dpkg-deb` / `rpmbuild` (`assets/linux/nfpm.yaml` provides an optional equivalent nfpm description). The AUR package lives in `assets/arch/` (`PKGBUILD` + `.SRCINFO`, package name `clovercut-bin`).
+
+AUR automation requires the repository secret `AUR_SSH_KEY` for an account with write access to `clovercut-bin`. It follows successful releases without modifying release tags. Explicit `VERSION` or `PREFIX` installer overrides use the verified AppImage directly.
 
 ### Running on Linux
 ```bash

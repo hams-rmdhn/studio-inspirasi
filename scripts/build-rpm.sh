@@ -17,6 +17,7 @@ if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
 fi
 stage=$(realpath "$1")
 version="$2"
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "expected a stable X.Y.Z version" >&2; exit 2; }
 for file in clovercut clovercut.png io.github.tulcoturo.clovercut.desktop LICENSE THIRD_PARTY_NOTICES.md; do
   test -f "$stage/$file" || { echo "missing stage file: $file" >&2; exit 1; }
 done
@@ -25,23 +26,21 @@ test -d "$stage/lib" || { echo "missing stage dir: $stage/lib" >&2; exit 1; }
 
 case "$(uname -m)" in
   x86_64) rpm_arch=x86_64 ;;
-  aarch64) rpm_arch=aarch64 ;;
+  aarch64|arm64) rpm_arch=aarch64 ;;
   *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
 esac
 
-out=${3:-"Clovercut-${version}-x86_64.rpm"}
-case "$out" in
-  *aarch64*) rpm_arch=aarch64 ;;
-  *x86_64*) rpm_arch=x86_64 ;;
-esac
+release_arch=$(uname -m)
+[ "$release_arch" != arm64 ] || release_arch=aarch64
+out=${3:-"Clovercut-${version}-${release_arch}.rpm"}
 mkdir -p "$(dirname "$out")"
 out=$(realpath -m "$out")
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 topdir="$work/rpm"
-mkdir -p "$topdir"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-root="$work/root"
+mkdir -p "$topdir"/{BUILD,RPMS,SOURCES,SPECS,SRPMS} "$work/rpmdb"
+root="$work/payload"
 mkdir -p "$root/opt/clovercut/lib" "$root/usr/bin" \
   "$root/usr/share/applications" \
   "$root/usr/share/icons/hicolor/256x256/apps" \
@@ -63,11 +62,18 @@ Summary: Desktop-first, open-source video editor with local AI
 License: AGPL-3.0-or-later
 URL: https://github.com/tulcoturo/clovercut
 BuildArch: ${rpm_arch}
-Requires: gtk3, fontconfig, freetype, libxkbcommon, libxkbcommon-x11, mesa-libGL, alsa-lib
+AutoReqProv: no
+%global debug_package %{nil}
+%global __os_install_post %{nil}
+Requires: libc.so.6()(64bit), libgcc_s.so.1()(64bit), libstdc++.so.6()(64bit), libgtk-3.so.0()(64bit), libfontconfig.so.1()(64bit), libfreetype.so.6()(64bit), libxkbcommon.so.0()(64bit), libxkbcommon-x11.so.0()(64bit), libGL.so.1()(64bit), libasound.so.2()(64bit)
 %description
 Timeline editing, effects, transitions, titles and on-device captions,
 with FFmpeg underneath and hardware-accelerated preview and export.
+%install
+mkdir -p "%{buildroot}"
+cp -a "$root/." "%{buildroot}/"
 %files
+%defattr(-,root,root,-)
 /opt/clovercut/
 /usr/bin/clovercut
 /usr/share/applications/io.github.tulcoturo.clovercut.desktop
@@ -75,9 +81,9 @@ with FFmpeg underneath and hardware-accelerated preview and export.
 /usr/share/doc/clovercut/
 SPEC
 
-rpmbuild -bb --define "_topdir $topdir" \
-  --define "_buildrootdir $work/root" \
-  --buildroot "$root" \
+rpmbuild -bb --nodeps --define "_topdir $topdir" \
+  --define "_tmppath $work" --define "_dbpath $work/rpmdb" \
+  --define "_binary_filedigest_algorithm 8" --target "$rpm_arch" \
   "$topdir/SPECS/clovercut.spec"
 
 built=$(find "$topdir/RPMS" -name '*.rpm' | head -1)

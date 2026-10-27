@@ -18,6 +18,7 @@ if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
 fi
 stage=$(realpath "$1")
 version="$2"
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "expected a stable X.Y.Z version" >&2; exit 2; }
 for file in clovercut clovercut.png io.github.tulcoturo.clovercut.desktop LICENSE THIRD_PARTY_NOTICES.md; do
   test -f "$stage/$file" || { echo "missing stage file: $file" >&2; exit 1; }
 done
@@ -26,15 +27,13 @@ test -d "$stage/lib" || { echo "missing stage dir: $stage/lib" >&2; exit 1; }
 
 case "$(uname -m)" in
   x86_64) deb_arch=amd64 ;;
-  aarch64) deb_arch=arm64 ;;
+  aarch64|arm64) deb_arch=arm64 ;;
   *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
 esac
 
-out=${3:-"Clovercut-${version}-x86_64.deb"}
-case "$out" in
-  *aarch64*|*arm64*) deb_arch=arm64 ;;
-  *x86_64*|*amd64*) deb_arch=amd64 ;;
-esac
+release_arch=$(uname -m)
+[ "$release_arch" != arm64 ] || release_arch=aarch64
+out=${3:-"Clovercut-${version}-${release_arch}.deb"}
 mkdir -p "$(dirname "$out")"
 out=$(realpath -m "$out")
 
@@ -61,7 +60,7 @@ Version: ${version}
 Section: video
 Priority: optional
 Architecture: ${deb_arch}
-Maintainer: Clovercut contributors <https://github.com/tulcoturo/clovercut>
+Maintainer: Clovercut contributors <tulcoturo@users.noreply.github.com>
 Homepage: https://github.com/tulcoturo/clovercut
 Description: Desktop-first, open-source video editor with local AI
  Timeline editing, effects, transitions, titles and on-device captions,
@@ -70,5 +69,5 @@ Depends: libc6, libgtk-3-0, libfontconfig1, libfreetype6, libxkbcommon0, libxkbc
 Installed-Size: ${installed_size}
 CONTROL
 
-dpkg-deb --build "$pkg" "$out"
+dpkg-deb --root-owner-group --build "$pkg" "$out"
 echo "Created $out"

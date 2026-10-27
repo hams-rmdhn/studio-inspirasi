@@ -1,109 +1,82 @@
-# Keep the AUR package on the latest release.
-#
-# AUR "-bin" packages pin pkgver and sha256sums (pacman verifies the
-# download against them), so they cannot float to "latest" by themselves.
-# This workflow runs scripts/bump-aur.sh on every published release and
-# pushes the result to AUR, so `yay -S clovercut-bin` / `yay -Syu` always
-# resolves to the newest release.
-#
-# Setup (once, by a maintainer): add the AUR SSH key as a repository secret
-# named AUR_SSH_KEY (the key whose public half is registered on
-# https://aur.archlinux.org/account). Without it the job reports the gap
-# and succeeds without pushing, so forks without the secret stay green.
+# A release created with GITHUB_TOKEN does not trigger another release event.
+# Follow successful release workflows instead, and always run trusted main code.
 name: Publish to AUR
 'on':
-  release:
-    types: [published]
+  workflow_run:
+    workflows: [Clovercut release]
+    types: [completed]
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to publish to AUR, e.g. v0.1.9
+        description: Stable release tag (empty selects latest)
         required: false
         default: ''
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: aur-publish
   cancel-in-progress: false
 jobs:
   aur:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag || github.ref }}
-      - name: Resolve the version
-        id: version
-        env:
-          TAG: ${{ github.event.release.tag_name || inputs.tag }}
-        run: |
-          set -euo pipefail
-          if [ -n "$TAG" ]; then
-            ver="${TAG#v}"
-          else
-            ver=$(sed -n 's/^version = "\(.*\)"/\1/p' src/Cargo.toml | head -1)
-          fi
-          echo "version=$ver" >> "$GITHUB_OUTPUT"
-          echo "Publishing clovercut-bin $ver to AUR"
-      - name: Bump the AUR files
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq pacman-package-manager 2>/dev/null \
-            || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq pacman 2>/dev/null \
-            || true
-          # makepkg comes from pacman; without it bump-aur.sh refuses to
-          # leave a stale .SRCINFO rather than push a mismatch.
-          ./scripts/bump-aur.sh "$VERSION" || ./scripts/bump-aur.sh "$VERSION" --check
-          git status --short -- assets/arch/
-      - name: Push to AUR
+          ref: main
+          persist-credentials: false
+      - name: Check publishing configuration
+        id: config
         env:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
-          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ -n "$AUR_SSH_KEY" ]; then
+            echo 'enabled=true' >> "$GITHUB_OUTPUT"
+          else
+            echo '::notice::AUR publication skipped: AUR_SSH_KEY is not configured.'
+          fi
+      - name: Prepare the latest stable release
+        if: steps.config.outputs.enabled == 'true'
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          if [ -z "$AUR_SSH_KEY" ]; then
-            echo "::notice::No AUR_SSH_KEY secret: bumped files stay in the repo; add the secret to push clovercut-bin $VERSION."
-            exit 0
-          fi
-          mkdir -p ~/.ssh
+          tag=$(gh release view "${REQUESTED_TAG:-}" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease --jq 'select(.isDraft == false and .isPrerelease == false) | .tagName')
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Expected a published stable release'; exit 1; }
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq makepkg
+          ./scripts/bump-aur.sh "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Push to AUR
+        if: steps.config.outputs.enabled == 'true'
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
           printf '%s\n' "$AUR_SSH_KEY" > ~/.ssh/aur-publish
           chmod 600 ~/.ssh/aur-publish
-          cat >> ~/.ssh/config <<'EOF'
-          Host aur-push
-            HostName aur.archlinux.org
-            User aur
-            IdentityFile ~/.ssh/aur-publish
-            IdentitiesOnly yes
-            StrictHostKeyChecking yes
-          EOF
-          ssh-keyscan -t ed25519 aur.archlinux.org >> ~/.ssh/known_hosts 2>/dev/null
-          rm -rf /tmp/aur-clovercut-bin
-          git clone ssh://aur-push/clovercut-bin.git /tmp/aur-clovercut-bin
-          cp assets/arch/PKGBUILD assets/arch/.SRCINFO /tmp/aur-clovercut-bin/
-          cd /tmp/aur-clovercut-bin
-          git add PKGBUILD .SRCINFO
-          if git diff --cached --quiet; then
-            echo "AUR already on $VERSION"
-          else
-            git -c user.name="clovercut-ci" -c user.email="clovercut-ci@users.noreply.github.com" \
-              commit -m "Update to $VERSION"
-            git push origin master
+          ssh-keyscan -T 10 -t ed25519 aur.archlinux.org > ~/.ssh/aur-known-hosts
+          # Fingerprint published at https://aur.archlinux.org/.
+          fingerprint=$(ssh-keygen -lf ~/.ssh/aur-known-hosts | awk '{print $2}')
+          [ "$fingerprint" = 'SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4' ] || { echo 'AUR host key mismatch'; exit 1; }
+          export GIT_SSH_COMMAND='ssh -i ~/.ssh/aur-publish -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/aur-known-hosts'
+          work=$(mktemp -d)
+          trap 'rm -rf "$work"; rm -f ~/.ssh/aur-publish' EXIT
+          git clone ssh://aur@aur.archlinux.org/clovercut-bin.git "$work/aur"
+          remote_version=$(sed -n 's/^pkgver=//p' "$work/aur/PKGBUILD" | head -1)
+          if dpkg --compare-versions "$remote_version" gt "${TAG#v}"; then
+            echo '::notice::AUR already has a newer version; refusing to downgrade.'
+            exit 0
           fi
-      - name: Commit bumped files back
-        if: always()
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          git add assets/arch/PKGBUILD assets/arch/.SRCINFO || true
-          if git diff --cached --quiet; then
-            echo "Nothing to commit back."
-          else
-            git -c user.name="clovercut-ci" -c user.email="clovercut-ci@users.noreply.github.com" \
-              commit -m "Track clovercut-bin $VERSION in assets/arch"
-            git push origin HEAD:${{ github.ref_name }} || echo "::notice::Could not push the bump back; open a PR with assets/arch instead."
+          cp assets/arch/PKGBUILD assets/arch/.SRCINFO "$work/aur/"
+          cd "$work/aur"
+          git add PKGBUILD .SRCINFO
+          if ! git diff --cached --quiet; then
+            git -c user.name=clovercut-ci -c user.email=clovercut-ci@users.noreply.github.com commit -m "Update to $TAG"
+            git push origin HEAD:master
           fi
