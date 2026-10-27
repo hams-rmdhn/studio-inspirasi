@@ -1,0 +1,36 @@
+name: Linux packaging checks
+'on':
+  pull_request:
+    paths:
+      - 'scripts/*deb*'
+      - 'scripts/*rpm*'
+      - 'scripts/install.sh'
+      - 'scripts/bump-aur.sh'
+      - 'scripts/models.py'
+      - 'scripts/test_linux_packaging.py'
+      - 'assets/arch/**'
+      - 'assets/linux/**'
+      - '.github/workflows/*packaging*'
+      - '.github/workflows/aur.yml'
+      - '.github/workflows/build-app.yml'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  packaging:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Packaging tools (no editor compilation)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rpm makepkg
+      - name: Installer, package layout, AUR metadata and manifest
+        run: python3 -m unittest discover -s scripts -p test_linux_packaging.py -v

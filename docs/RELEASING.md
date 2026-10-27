@@ -65,10 +65,14 @@ architecture/CPU compatibility. macOS jobs check the app bundle and native start
 FFmpeg packages must include the required Rubber Band filters. Windows dynamic
 GGML builds retain their backend feature probes and checksum-pinned dependencies.
 
-Every desktop release requires these eight nonempty packages:
+Every desktop release after 0.1.8 requires these twelve nonempty packages:
 
 - `Clovercut-<version>-x86_64.AppImage`
 - `Clovercut-<version>-aarch64.AppImage`
+- `Clovercut-<version>-x86_64.deb`
+- `Clovercut-<version>-aarch64.deb`
+- `Clovercut-<version>-x86_64.rpm`
+- `Clovercut-<version>-aarch64.rpm`
 - `Clovercut-<version>-windows-x86_64-setup.exe`
 - `Clovercut-<version>-windows-x86_64-portable.zip`
 - `Clovercut-<version>-windows-aarch64-setup.exe`
