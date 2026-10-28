@@ -39,6 +39,20 @@ Incremental/no-change builds can have very different resource and time costs.
 
 A local development executable is not a portable release package.
 
+### Optional graphical walkthrough
+
+The Linux screenshot driver is development tooling, excluded from ordinary and
+release builds. In an isolated Hyprland session with `grim` and FFmpeg available:
+
+```sh
+CLOVERCUT_UI_WALKTHROUGH=1 cargo run --profile quick -p concat --bin clovercut --features ui-walkthrough -j1
+```
+
+Use a fresh XDG profile and a dedicated capture directory (`CLOVERCUT_SCREENSHOT_DIR`).
+Missing fixture generation or screenshots fail the run. The driver still uses
+timed steps; captures require visual review and do not replace interactive focus,
+accessibility or cross-platform checks.
+
 ## Prepare a release
 
 1. Set the workspace version in `src/Cargo.toml` and the workspace lockfile entries.

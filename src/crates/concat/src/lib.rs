@@ -35,6 +35,7 @@ mod batch_volume;
 mod chips;
 mod desktop_navigation;
 mod dock;
+mod enhance_plan;
 mod fonts;
 mod format;
 mod gpu;
@@ -60,7 +61,7 @@ pub use platform::{LinkOpener, install_link_opener};
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub use platform::{MicrophoneAccess, install_microphone_access};
 mod panes;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "ui-walkthrough"))]
 mod phase5_ui_walkthrough;
 mod prefs;
 mod presets;
@@ -2947,7 +2948,7 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
         Shell::with(|_, app| platform::apply_ui_scale(app.window()));
     });
 
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", feature = "ui-walkthrough"))]
     let _walkthrough = if std::env::var_os("CLOVERCUT_UI_WALKTHROUGH").is_some() {
         Some(phase5_ui_walkthrough::start(shell.clone(), app.as_weak()))
     } else {

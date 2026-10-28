@@ -9,6 +9,7 @@
 - [Automation with MCP](MCP.md).
 - [Building and releasing](RELEASING.md).
 - [Concat adaptations](UPSTREAM.md): provenance, deliberate differences and pending candidates.
+- [Quality and polish plan](../POLISH_PLAN.md) and [28 October quality audit](audits/2026-10-28.md).
 - [Release notes](releases/): published version history and upcoming release notes.
 
 The [source overview](../src/README.md) describes architecture and crate boundaries.

@@ -1,22 +1,187 @@
-# Clovercut polish — completed programme
+# Clovercut quality and polish plan
 
-The eight-phase polish programme is complete. Its superseded investigation logs,
-phase reports and audit screenshots are available in Git history. This file does
-not impose historical stop/approval gates on current development.
+Status: implementation in progress, 28 October 2026. Baseline: `fb8b7f90` / release 0.1.9 source.
+Evidence and test dispositions: [quality audit](docs/audits/2026-10-28.md).
+The previous eight-phase programme remains in Git history. This plan does not
+change existing release gates or authorize deletion of protective tests.
 
-Maintained documentation is indexed in [docs/README.md](docs/README.md).
-Architecture and timing boundaries are described in [src/README.md](src/README.md).
+The objective is predictable editing, trustworthy validation and shorter
+development cycles. There is no target test-count reduction. Prefer fixing
+existing workflows before adding features.
 
-Regression coverage remains in the source tree:
+## Execution record — first increment
 
-- Project durability, ownership, atomic editing and clipboard tests in `concat-project` and `concat-host`.
-- Timeline precision and interaction regressions in `phase3_timeline_tests.rs`.
-- Playback clock, recovery and preview/export parity suites in the `phase4_*` modules.
-- Isolated graphical walkthrough in `phase5_ui_walkthrough.rs`.
-- Performance and lifecycle budgets in `phase6_performance_tests.rs`.
-- Export precision, cancellation and destination preservation in `phase7_export_reliability_tests.rs`.
+Implemented locally:
 
-Keep these tests and the applicable CI checks when changing the corresponding
-behaviour. Machine-specific historical timings are not current performance or
-cross-platform guarantees. Consult [Concat adaptations](docs/UPSTREAM.md) for
-selectively imported changes and deliberate Clovercut differences.
+- P0: seek stress test requires all 50 seeks to publish the target picture and
+  reach the playback position before the deadline; timeouts cannot count as success.
+- P0: host export test renamed to describe its actual contract; the format
+  matrix now inspects encoded codec, pixel format/depth, range, exact rate and
+  final picture content. All five export reliability cases passed.
+- P0: reusable x86_64/ARM64 package regressions gate release publication on the
+  exact source SHA; the connector has a Node 22 CI job; reports survive success.
+- P1: common icon buttons expose their role, label, enabled state and default
+  action. Slint generation passed; screen-reader qualification remains pending.
+- P1/P2: Enhance request and estimate share a small pure planning module, tested
+  without compiling the generated UI. Four cases passed (trimmed long source,
+  boundaries, retiming/fractional rate, enhanced offset/still).
+- P2: screenshot walkthrough is opt-in development tooling; fixture/capture
+  failures no longer silently continue. State-driven steps remain future work.
+- Distribution: 0.1.9 is published with all twelve packages. Website update is
+  deployed as `03e59cff`; README/install/AUR metadata updates are prepared locally.
+
+Validation so far: 19 package regressions, 9 locale-tool regressions, 6 connector
+cases, 4 Enhance-planning cases and 5 export reliability cases passed. Strict
+locale inventory, rustfmt, actionlint and Slint generation passed.
+
+Limits: full desktop Rust checking exceeded the deliberate 6 GiB address-space
+limit (rustc allocation failure/SIGABRT), so it is not recorded as passing. Further
+heavy compilation should run in an isolated CI runner or with the documented
+disk-swap/cgroup protections. Native container installation checks could not run:
+Docker access is denied and passwordless sudo is unavailable. No packages were
+installed on the host. Interactive graphical/audio qualification is still pending.
+
+The remaining sections are planned work, not a completed-programme claim. Keep
+the existing gRPC second pass for now: its measured cost is only 5.644 seconds.
+
+## Priorities
+
+- **P0:** validation that can incorrectly report success, or omit required release checks.
+- **P1:** editing consistency, accessibility, useful feedback and measured performance.
+- **P2:** maintainability, documentation and broader platform qualification.
+
+## 1. Make the test results trustworthy — P0
+
+1. Separate completed seeks from timed-out seeks in the rapid-transport suite.
+2. Rename the host export-shape test currently called GUI/API parity, or implement
+   independent entry-point comparison. Keep title/transition export coverage.
+3. Probe actual encoded codec, bit depth, colour tags and rate in the format
+   matrix; verify final-frame content against the source fixture.
+4. Classify ignored cases as hardware, graphical, live-provider or benchmark,
+   with prerequisites and a last-qualified source/platform record.
+
+Acceptance: a never-landing seek fails; changed output format is detected; test
+names match their assertions; ordinary green CI does not claim graphical/live
+coverage it did not execute. Preserve atomic-save/export, cancellation, locks,
+clipboard and resource-ownership regressions.
+
+## 2. Close CI and release gaps — P0
+
+1. Run connector tests in a fast job using the supported Node runtime. Confirm
+   all six language cases execute; avoid a file-only false-success report.
+2. Require Linux packaging/installer regressions on the exact release SHA, in
+   x86_64 and ARM64 jobs, before publishing. Reuse the existing suite.
+3. Retain compact successful JUnit reports/timing summaries, distinguishing
+   executed, ignored and environment-unavailable checks.
+4. Add native-package install qualification in disposable Debian/Ubuntu and
+   RPM-family environments, including launch, upgrade and removal. Keep the
+   existing AppImage and architecture/startup checks.
+
+Acceptance: broken connector fixtures/package regressions block publication;
+the release identifies the tested source; packages launch without build-machine
+paths. Use isolated environments; never install test packages onto the user's desktop.
+
+## 3. Reduce development cost using measurements — P1
+
+1. Record cold and warm timings separately for dependency setup, Slint generation,
+   Rust checking/Clippy, test compilation, linking and execution.
+2. Investigate the desktop crate's checking/compilation cost. Prototype separating
+   pure editing/layout logic from generated UI only if measurements show a
+   benefit. Do not change profiles speculatively.
+3. Consolidate fixture builders where this removes real duplication. Use small
+   media for functional cases; retain 4K where resolution affects behaviour.
+4. Evaluate filtering the second server execution to gRPC and feature-sensitive
+   cases. Preserve feature-enabled compilation/lints; expect seconds, not minutes,
+   from this small consolidation.
+5. Preserve process isolation for global settings and GPU/audio state. Do not
+   increase heavy-build concurrency on the 16 GiB development machine.
+
+Acceptance: record comparable before/after cold and warm timings, with the same
+machine/toolchain/settings and no loss of failure detection. Follow the
+[documented resource limits](docs/RELEASING.md#local-development), including memory
+guard and swap requirements for a full graphical build.
+
+## 4. Review the desktop workflow interactively — P1
+
+1. Walk through fresh launch, import, edit, captions, libraries, save/reopen,
+   missing-media recovery and export. Record actual failures and screenshots.
+2. Review workspace presets at desktop sizes and 100–200% scaling, both themes,
+   longer translations and RTL text. Check clipping, density, selection visibility,
+   drag/drop feedback and tooltip placement.
+3. Audit Tab/Shift+Tab, Enter/Space, Escape, shortcut isolation while typing,
+   accessible labels/actions and non-colour status cues. Start with the shared
+   `IconButton` and playhead cut button.
+4. Decide/document the cut-grid policy across shortcut, menu, quick split and
+   razor. Check rational frame rates and preserve intentional continuous audio
+   operations before changing characterisation tests.
+5. Make loading, disabled, empty and error states actionable and translated.
+   Preserve selection and timeline position when background work finishes.
+
+Acceptance: an isolated profile can complete the edit/export journey with mouse
+and keyboard; evidence identifies source, scale and platform. Scale validation to
+risk; do not create tests for every reversible visual adjustment.
+
+## 5. Improve responsiveness and resource feedback — P1
+
+1. Make Enhance estimates use the same source span/margins as the job. Cover
+   trimmed, still, retimed and already-enhanced clips.
+2. Split phase-6 into deterministic lifecycle regressions and an opt-in benchmark
+   producing structured samples with OS/GPU/driver and project metadata.
+3. Measure startup, first useful preview, seek latency, playback, thumbnails,
+   waveforms and inspector publication on small, caption-heavy, long-audio and
+   layered-4K projects.
+4. Measure RSS/cache growth through repeated seek/play/project-switch/undo cycles.
+   Mark unavailable platform/GPU counters as unavailable rather than zero.
+5. Set budgets after repeated stable baseline runs. Investigate p95 spikes and
+   growth trends before changing cache sizes or threading.
+
+Acceptance: ETA corresponds to requested work; functional cleanup checks are
+deterministic; benchmark reports separate decode, composition, UI publication and
+fixture-generation time. Avoid unsupported cross-machine timing promises.
+
+## 6. Validate projects, media and online services — P1
+
+1. Recheck crash recovery, missing/replaced media, failed saves, full disks,
+   destination preservation, clipboard-owned files and undo across linked edits.
+2. Qualify trim/speed/reverse/VFR/nonzero-PTS playback and export, caption styling,
+   transparent transitions and global sound effects against existing coverage.
+3. Exercise provider-disabled/offline/auth-expired/rate-limited states, stale
+   replies, cancelled downloads, cache reuse and licence/credit display.
+4. Review Studio session lifecycle, missing browser/runtime, port conflicts,
+   startup timeouts, reconnect and log retention. Keep credentials/browser profiles
+   outside source and test artifacts.
+5. Review cache size visibility and safe cleanup of disposable downloads without
+   removing project-owned media, installed transitions or needed AI models.
+
+Acceptance: failed/obsolete work cannot overwrite the active project, output or
+selection; recovery gives a next action; offline reuse and attribution remain
+correct. Live-service checks stay separate from deterministic ordinary CI.
+
+## 7. Maintain test tooling and release documentation — P2
+
+1. Move the Hyprland/grim walkthrough behind explicit development tooling; wait
+   for observable states and fail on missing fixtures/screenshots. Maintain a
+   portable Windows/macOS checklist.
+2. Rename historical phase suites by behaviour and share small isolated fixtures.
+   Remove a case only after identifying its replacement contract/negative case.
+3. Extract cohesive modules from `studio.rs` incrementally while fixing those
+   areas. Avoid a large rewrite alongside behavioural changes.
+4. Align published links, native-package availability, AUR status, supported
+   platforms and requirements with verified artifacts. Replace obsolete compile-time
+   claims in comments and keep the README concise.
+
+Acceptance: maintained checks have a purpose and runnable command; production
+builds do not carry an unnecessary walkthrough driver; documentation reflects
+published capabilities.
+
+## Order and completion evidence
+
+Start with 1–2, then establish measurements in 3 before performance changes. Run
+4–6 as focused reviews, fixing confirmed issues in small changes; finish tooling
+and documentation in 7. Track each item as proposed, in progress, verified or
+deferred, with a reason for deferral.
+
+Each change records the problem, affected behaviour, validation and material
+limitations. Evidence scales with risk: functional regressions for timing/data
+fixes, actual installs for package changes, visual review for layout changes.
+Completion depends on observed results, not tests added or removed.

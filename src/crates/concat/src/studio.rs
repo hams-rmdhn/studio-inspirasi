@@ -874,10 +874,6 @@ pub fn sync<T: Clone + PartialEq + 'static>(model: &VecModel<T>, next: Vec<T>) {
     }
 }
 
-/// Seconds of the original an enhanced copy covers beyond each end of the
-/// clip it was made for, so a small trim after does not run off the copy.
-const ENHANCE_MARGIN: f64 = 1.0;
-
 /// The window's state. See the module docs for what is whose.
 pub struct Studio {
     pub host: Host,
@@ -8799,16 +8795,7 @@ impl Studio {
         let factor = self.enhance_factor(&media);
         let strength = self.enhance_strength;
         let still = clip.kind == model::ClipKind::Image;
-        // The span the clip shows of the original, and a second either side
-        // so a small trim after is still inside the copy: the work is the
-        // clip's, not the whole file's.
-        let span = (!still).then(|| {
-            let start = Self::original_start(&clip);
-            let covered = clip.duration * clip.speed;
-            let from = (start - ENHANCE_MARGIN).max(0.0);
-            let to = (start + covered + ENHANCE_MARGIN).min(media.duration.unwrap_or(f64::MAX));
-            (from, (to - from).max(covered))
-        });
+        let span = Self::enhance_plan(&clip, &media).span;
         let Some(target) =
             concat_host::enhance::target_for(&project, &media.path, factor, strength, still, span)
         else {
@@ -12910,14 +12897,7 @@ impl Studio {
         readout.preview = self
             .enhance_preview_for(clip, &media, factor)
             .map(|preview| {
-                // The model's work on the whole file - every frame of it,
-                // not only the span the clip shows - at the warm tile time
-                // the preview measured.
-                let frames = if clip.kind == model::ClipKind::Image {
-                    1.0
-                } else {
-                    media.duration.unwrap_or(0.0) * media.frame_rate.unwrap_or(30.0)
-                };
+                let frames = Self::enhance_plan(clip, &media).frames;
                 let per_frame = preview.tile_seconds * preview.tiles_per_frame as f64;
                 let total = concat_host::enhance::estimate_seconds(
                     preview.tile_seconds,
@@ -12942,6 +12922,17 @@ impl Studio {
                 (preview.before.clone(), preview.after.clone(), estimate)
             });
         readout
+    }
+
+    /// The same work interval drives the request and its time estimate.
+    fn enhance_plan(clip: &Clip, media: &model::MediaItem) -> crate::enhance_plan::Plan {
+        crate::enhance_plan::plan(
+            clip.kind == model::ClipKind::Image,
+            Self::original_start(clip),
+            clip.duration * clip.speed,
+            media.duration,
+            media.frame_rate.unwrap_or(30.0),
+        )
     }
 
     /// The source instant of `clip` under the playhead, held to the clip.

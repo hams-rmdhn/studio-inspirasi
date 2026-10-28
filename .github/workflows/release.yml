@@ -63,6 +63,12 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       ref: ${{ needs.check.outputs.commit }}
+  packaging:
+    name: Linux package regressions
+    needs: check
+    uses: ./.github/workflows/linux-packaging.yml
+    with:
+      ref: ${{ needs.check.outputs.commit }}
   build:
     needs: check
     uses: ./.github/workflows/build-app.yml
@@ -74,6 +80,7 @@ jobs:
     needs:
     - check
     - engine
+    - packaging
     - build
     runs-on: ubuntu-24.04
     timeout-minutes: 30

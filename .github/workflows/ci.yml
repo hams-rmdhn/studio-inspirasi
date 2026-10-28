@@ -31,6 +31,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  connector:
+    name: Audio connector regressions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Studio preview language regressions
+        # Direct execution uses node:test and propagates assertion failures.
+        # No browser, credentials or network service is needed.
+        run: node src/crates/concat-host/audio-service/test/bridge.test.mjs
   engine:
     name: Engine tests and lints
     runs-on: ubuntu-24.04
@@ -221,11 +237,12 @@ jobs:
           mv target/nextest/ci/junit.xml target/nextest/ci/junit-grpc.xml 2>/dev/null || true
           exit "$status"
 
-      - name: Keep the test report (failure only)
-        if: failure()
+      - name: Keep test results and timings
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-report-linux
+          retention-days: 14
           path: |
             src/target/nextest/ci/*.xml
             src/nextest-*.log

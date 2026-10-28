@@ -42,7 +42,7 @@ fn ensure_synthetic_media(dir: &Path) -> (PathBuf, PathBuf, PathBuf) {
     let audio = dir.join("soundtrack.wav");
 
     if !video_a.exists() {
-        let _ = std::process::Command::new("ffmpeg")
+        let status = std::process::Command::new("ffmpeg")
             .args([
                 "-v",
                 "error",
@@ -65,11 +65,13 @@ fn ensure_synthetic_media(dir: &Path) -> (PathBuf, PathBuf, PathBuf) {
                 "aac",
             ])
             .arg(&video_a)
-            .status();
+            .status()
+            .expect("ffmpeg must be available for the walkthrough");
+        assert!(status.success(), "could not create landscape fixture");
     }
 
     if !video_b.exists() {
-        let _ = std::process::Command::new("ffmpeg")
+        let status = std::process::Command::new("ffmpeg")
             .args([
                 "-v",
                 "error",
@@ -92,11 +94,13 @@ fn ensure_synthetic_media(dir: &Path) -> (PathBuf, PathBuf, PathBuf) {
                 "aac",
             ])
             .arg(&video_b)
-            .status();
+            .status()
+            .expect("ffmpeg must be available for the walkthrough");
+        assert!(status.success(), "could not create portrait fixture");
     }
 
     if !audio.exists() {
-        let _ = std::process::Command::new("ffmpeg")
+        let status = std::process::Command::new("ffmpeg")
             .args([
                 "-v",
                 "error",
@@ -111,7 +115,9 @@ fn ensure_synthetic_media(dir: &Path) -> (PathBuf, PathBuf, PathBuf) {
                 "pcm_s16le",
             ])
             .arg(&audio)
-            .status();
+            .status()
+            .expect("ffmpeg must be available for the walkthrough");
+        assert!(status.success(), "could not create audio fixture");
     }
 
     (video_a, video_b, audio)
@@ -146,7 +152,7 @@ fn capture_screenshot(name: &str) {
             .into_owned()
     });
     let screenshot_dir = Path::new(&dir_override);
-    let _ = std::fs::create_dir_all(screenshot_dir);
+    std::fs::create_dir_all(screenshot_dir).expect("create walkthrough screenshot directory");
     let dest = screenshot_dir.join(format!("{name}.png"));
 
     if let Some((x, y, w, h)) = window_geometry() {
@@ -164,7 +170,7 @@ fn capture_screenshot(name: &str) {
             return;
         }
     }
-    eprintln!("WALKTHROUGH: Failed to capture {name}");
+    panic!("WALKTHROUGH: Failed to capture {name}; requires Hyprland and grim");
 }
 
 pub fn start(shell: Rc<Shell>, app_weak: slint::Weak<App>) -> slint::Timer {

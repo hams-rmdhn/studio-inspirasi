@@ -7,6 +7,10 @@ license.workspace = true
 publish = false
 description = "Clovercut, the editor window: the Slint front end that drives the engine."
 
+[features]
+# Explicit local QA tooling; the screenshot driver is not part of release builds.
+ui-walkthrough = []
+
 # The product's name is the binary's name, unsuffixed: `concat` is what a
 # user launches, and the concat-* crates are what it is made of. The window
 # itself is the library, so that the binary here and the Android activity

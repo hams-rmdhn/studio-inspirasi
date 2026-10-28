@@ -222,6 +222,12 @@ export component Row inherits HorizontalLayout {
 }
 
 export component IconButton inherits Rectangle {
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: root.enabled;
+    accessible-action-default => {
+        if (root.enabled) { root.clicked(); }
+    }
     in property <Glyph> glyph;
     /// text label instead of a glyph, for toggles like M / S
     in property <string> text;

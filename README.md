@@ -47,12 +47,12 @@ upstream improvements to its own timeline and project behaviour; the
 
 ## Download and install
 
-[**Download Clovercut 0.1.8**](https://github.com/tulcoturo/clovercut/releases/tag/v0.1.8)
-— [Release notes](docs/releases/0.1.8.md)
+[**Download Clovercut 0.1.9**](https://github.com/tulcoturo/clovercut/releases/tag/v0.1.9)
+— [Release notes](docs/releases/0.1.9.md)
 
 | Platform | Packages | Architectures |
 |---|---|---|
-| Linux | AppImage | x86_64, ARM64 |
+| Linux | AppImage, `.deb`, `.rpm` | x86_64, ARM64 |
 | Windows | Installer or portable ZIP | x86_64, ARM64 |
 | macOS | DMG | Intel, Apple Silicon |
 

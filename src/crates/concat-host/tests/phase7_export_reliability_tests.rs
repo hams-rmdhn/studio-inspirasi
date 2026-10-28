@@ -10,7 +10,7 @@
 //! - 7.3 & Audit E2: Cancellation in video, audio, and mux stages; cancellation latency
 //!   measurement; destination preservation; temporary cleanup; slot release and retry.
 //! - 7.4: Missing source files, unwritable destinations, and error recovery.
-//! - 7.5: GUI and host request agreement across settings, captions, and transitions.
+//! - 7.5: Host export request settings, captions and transitions reach the output.
 //! - 7.6 & Audit E1: Concurrent exports with same-stem scratch isolation.
 
 use std::path::{Path, PathBuf};
@@ -310,10 +310,73 @@ fn test_export_format_matrix_and_precision_verification() {
         assert_eq!(video_info.height, HEIGHT);
         assert!(info.audio.is_some(), "has audio stream");
 
+        // Inspect the encoded stream, not the requested export settings.
+        let probe = std::process::Command::new("ffprobe")
+            .args([
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=codec_name,pix_fmt,color_range,avg_frame_rate",
+                "-of",
+                "json",
+            ])
+            .arg(&output_path)
+            .output()
+            .expect("ffprobe is required for encoded-format verification");
+        assert!(
+            probe.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&probe.stderr)
+        );
+        let metadata: serde_json::Value = serde_json::from_slice(&probe.stdout).unwrap();
+        let stream = &metadata["streams"][0];
+        assert_eq!(
+            stream["codec_name"],
+            if codec == VideoCodec::H264 {
+                "h264"
+            } else {
+                "hevc"
+            },
+            "{name}"
+        );
+        let pixel_format = stream["pix_fmt"].as_str().expect("encoded pixel format");
+        if ten_bit {
+            assert_eq!(pixel_format, "yuv420p10le", "{name}: actual 10-bit output");
+        } else {
+            assert!(
+                matches!(pixel_format, "yuv420p" | "yuvj420p"),
+                "{name}: actual 8-bit output: {pixel_format}"
+            );
+        }
+        assert_eq!(
+            stream["color_range"],
+            if color_range == concat_media::ColorRange::Full {
+                "pc"
+            } else {
+                "tv"
+            },
+            "{name}"
+        );
+        assert_eq!(
+            stream["avg_frame_rate"],
+            format!("{rate_num}/{rate_den}"),
+            "{name}"
+        );
+
         // Final frame validity check
         let last_frame = &decoded.frames[expected_frames - 1];
         let px = last_frame.pixel(WIDTH / 2, HEIGHT / 2).unwrap();
-        assert!(px[3] > 0, "final frame is valid non-transparent picture");
+        // The fixture changes red every second; its last second is [100,80,190].
+        // Check picture content with room for lossy YUV conversion/compression.
+        for (actual, expected) in px[..3].iter().zip([100u8, 80, 190]) {
+            assert!(
+                actual.abs_diff(expected) <= 12,
+                "{name}: wrong final picture: {px:?}"
+            );
+        }
+        assert_eq!(px[3], 255, "{name}: opaque output");
     }
 
     let _ = std::fs::remove_dir_all(&root);
@@ -596,20 +659,20 @@ fn test_export_boundary_and_error_handling() {
 }
 
 // -----------------------------------------------------------------------------
-// TASK 7.5: GUI & Host/API Export Request Parity
+// Host request settings, titles and transitions reach the exported file.
 // -----------------------------------------------------------------------------
 #[test]
-fn test_export_gui_api_parity_agreement() {
-    let root = std::env::temp_dir().join(format!("phase7-parity-{}", std::process::id()));
+fn host_export_request_preserves_settings_titles_and_transitions() {
+    let root = std::env::temp_dir().join(format!("host-request-{}", std::process::id()));
     std::fs::create_dir_all(&root).unwrap();
 
     let clip_a = make_test_clip(&root, "clip_a", 2, FrameRate::THIRTY);
     let clip_b = make_test_clip(&root, "clip_b", 2, FrameRate::THIRTY);
-    let output_path = root.join("parity_export.mp4");
+    let output_path = root.join("host_export.mp4");
 
     let mut session = create_test_session(
-        &root.join("proj_parity"),
-        "ProjParity",
+        &root.join("proj_host_export"),
+        "Host export",
         WIDTH,
         HEIGHT,
         30,
@@ -683,7 +746,7 @@ fn test_export_gui_api_parity_agreement() {
             duration: Some(1.5),
             offset_y: Some(0.0),
             style: Some(TextStyle {
-                content: "Phase 7 Parity Test".into(),
+                content: "Host export fixture".into(),
                 font_size: 0.2,
                 ..Default::default()
             }),
@@ -714,7 +777,7 @@ fn test_export_gui_api_parity_agreement() {
 
     let request = export::request(&session, &spec, title_clips);
 
-    // Verify all parity fields agree
+    // Verify that the host request carries the requested settings.
     assert_eq!(request.width, WIDTH);
     assert_eq!(request.height, HEIGHT);
     assert_eq!(request.rate_num, 30);

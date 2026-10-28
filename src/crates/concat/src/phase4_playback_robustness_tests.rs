@@ -210,19 +210,25 @@ fn run_rapid_transport_scrubbing() {
             }
 
             // Phase B: 50 scrubbing seeks at ~20 Hz alternating forward & backward across boundaries
-            if scrub_count < 50 {
+            if scrub_count < 50 || waiting_for_seek {
                 if !waiting_for_seek {
                     // Alternate seek targets: 0.5s, 4.0s, 2.0s, 8.5s, 0.1s, 9.9s (near boundary)
                     let targets = [0.5, 4.0, 2.0, 8.5, 0.1, 9.9, 3.0, 6.0, 1.5, 7.5];
                     target_seek_time = targets[scrub_count % targets.len()];
                     current_seek_start = Instant::now();
+                    studio.monitor.clear_observed();
                     studio.seek(target_seek_time);
                     waiting_for_seek = true;
                     scrub_count += 1;
                 } else {
                     // Check if landed
                     let current_pos = studio.host.playback.position_now();
-                    if (current_pos - target_seek_time).abs() < 0.1 || current_seek_start.elapsed() > Duration::from_millis(60) {
+                    let elapsed = current_seek_start.elapsed();
+                    assert!(elapsed < Duration::from_millis(150),
+                        "Seek to {target_seek_time:.3}s did not land before its deadline (position {current_pos:.3}s)");
+                    let picture_landed = studio.monitor.observed_frames.last()
+                        .is_some_and(|(spec, _, _)| (spec.time - target_seek_time).abs() < 1.0 / 30.0);
+                    if (current_pos - target_seek_time).abs() < 0.1 && picture_landed {
                         let latency_ms = current_seek_start.elapsed().as_secs_f64() * 1000.0;
                         seek_latencies.push(latency_ms);
                         waiting_for_seek = false;
@@ -246,7 +252,7 @@ fn run_rapid_transport_scrubbing() {
                 let avg_lat: f64 = seek_latencies.iter().sum::<f64>() / seek_latencies.len() as f64;
                 println!("Seek Latency Distribution: min={min_lat:.1} ms, avg={avg_lat:.1} ms, max={max_lat:.1} ms");
 
-                assert!(seek_latencies.len() >= 40, "Expected at least 40 completed seeks");
+                assert_eq!(seek_latencies.len(), 50, "Every requested seek must land");
                 assert!(max_lat < 150.0, "Max seek latency must remain bounded");
 
                 let _ = std::fs::remove_dir_all(&dir);
