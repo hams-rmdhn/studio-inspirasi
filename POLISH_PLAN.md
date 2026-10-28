@@ -89,6 +89,30 @@ the existing gRPC second pass for now: its measured cost is only 5.644 seconds.
   do not derive budgets from those values. Structured runtime sampling and the
   graphical lifecycle split remain pending.
 
+## Execution record — third increment
+
+- Runtime probe reporting now preserves raw samples and summaries as versioned
+  JSON records, with separate fixture, initialisation, preview, audio, captions,
+  history and 4K host-call measurements. No performance budget was invented.
+- Unsupported/malformed process counters remain unavailable; device-wide DRM
+  counters retain device identity and actual zeros. Empty/invalid timing samples
+  cannot become successful zero-duration measurements.
+- Cache/presentation/GPU labels now describe observed calls. Structured close
+  counters and all existing lifecycle assertions remain in place.
+- The collector retains partial records and requires the test command's exit
+  status as well as a completion marker. Missing provenance remains explicit.
+- Validation: four pure Rust measurement cases and four collector cases passed;
+  direct Clippy, formatting and actionlint passed. A synthetic protocol fixture
+  compiled the actual Rust reporting helpers and checked their JSON with the
+  collector; it is not recorded as a graphical benchmark.
+- [Full CI](https://github.com/tulcoturo/clovercut/actions/runs/40682285824)
+  and [headless CI](https://github.com/tulcoturo/clovercut/actions/runs/40682285873)
+  passed on `2562025e`. Subsequent changes strengthen collector exit-status checks
+  and document usage; Rust integration is unchanged from that qualified source.
+- The ignored graphical benchmark has **not** been executed. Controlled runtime
+  baselines, the separate graphical lifecycle suite and interactive qualification
+  remain pending. See [runtime report instructions](docs/TESTING.md#opt-in-runtime-performance-report).
+
 ## Priorities
 
 - **P0:** validation that can incorrectly report success, or omit required release checks.

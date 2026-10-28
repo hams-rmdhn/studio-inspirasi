@@ -25,10 +25,15 @@ class PerformanceReportTests(unittest.TestCase):
         self.assertEqual(report["records"][2]["data"]["high_water_bytes"], 0)
 
     def test_completed_run_does_not_qualify_a_performance_budget(self):
-        report = collect(self.fixture() + line("complete", {"lifecycle_assertions": "passed"}))
+        log = self.fixture() + line("complete", {"lifecycle_assertions": "passed"})
+        report = collect(log, exit_code=0)
         self.assertEqual(report["status"], "complete")
         self.assertTrue(report["metadata_complete"])
         self.assertFalse(report["performance_budget_qualified"])
+        for exit_code in (None, 1, 134):
+            failed = collect(log, exit_code=exit_code)
+            self.assertEqual(failed["status"], "incomplete")
+            self.assertTrue(failed["records_complete"])
         self.assertFalse(collect(line("context", {}))["metadata_complete"])
 
     def test_no_test_execution_unknown_schema_and_duplicate_runs_are_rejected(self):

@@ -15,7 +15,7 @@ def number(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0
 
 
-def collect(log):
+def collect(log, *, exit_code=None):
     records = []
     context = None
     complete = False
@@ -57,7 +57,8 @@ def collect(log):
     if complete and (context is None or not {"samples", "memory", "lifecycle"}.issubset(
             {record["event"] for record in records})):
         raise ValueError("completion marker without required benchmark records")
-    return {"schema_version": 1, "status": "complete" if complete else "incomplete",
+    return {"schema_version": 1, "status": "complete" if complete and exit_code == 0 else "incomplete",
+            "records_complete": complete, "process_exit_code": exit_code,
             "metadata_complete": bool(context and all(context.get(key) for key in
                 ("source_sha", "machine_label", "toolchain", "os", "architecture"))),
             "performance_budget_qualified": False, "records": records}
@@ -67,14 +68,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("log", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--exit-code", type=int, required=True, help="exit status of the cargo/test command")
     args = parser.parse_args()
     try:
-        report = collect(args.log.read_text())
+        report = collect(args.log.read_text(), exit_code=args.exit_code)
     except (ValueError, TypeError, AttributeError) as error:
         parser.error(str(error))
     args.output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
     if report["status"] != "complete":
-        parser.exit(1, "Incomplete probe: partial records retained; no passing qualification.\n")
+        parser.exit(1, "Incomplete/failed probe: records retained; no passing qualification.\n")
 
 
 if __name__ == "__main__":

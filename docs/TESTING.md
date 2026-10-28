@@ -144,3 +144,56 @@ the same runner/toolchain/profiles/dependencies and retain the matching command,
 source and cache evidence. This tool reports observations and sets no performance
 budgets. The [first increment report](audits/data/2026-10-28-ci-timings.json) is a
 baseline with unknown cache state, not a controlled cold/warm comparison.
+
+## Opt-in runtime performance report
+
+The phase-6 probe requires an isolated graphical/GPU/audio session and FFmpeg.
+Its child uses fresh XDG directories on Linux. Use a clean checkout and a dedicated
+QA session; other platforms' profile isolation has not been qualified. Compilation
+of this ignored test does not mean the graphical probe executed.
+
+From `src/`, in Bash, supply provenance and retain both output and exit status:
+
+```sh
+export CLOVERCUT_BENCHMARK_SOURCE="$(git rev-parse HEAD)"
+export CLOVERCUT_BENCHMARK_TOOLCHAIN="$(rustc --version)"
+export CLOVERCUT_BENCHMARK_MACHINE="reference-machine-label"
+set -o pipefail
+probe_status=0
+cargo test -p concat --lib studio::phase6_performance_tests::phase6_performance_and_memory_suite \
+  -- --exact --ignored --nocapture --test-threads=1 2>&1 \
+  | tee /tmp/clovercut-performance.log || probe_status=$?
+python3 ../scripts/performance_report.py /tmp/clovercut-performance.log \
+  --exit-code "$probe_status" --output /tmp/clovercut-performance.json
+```
+
+The collector retains partial records and exits nonzero for an incomplete or
+failed probe. A completion marker alone cannot override a failed test command.
+Metadata completeness is separate from execution status; absent provenance stays
+unknown. `performance_budget_qualified` remains false: collecting samples does
+not establish a performance budget.
+
+Records preserve raw millisecond samples, mean, nearest-rank p95 and maximum.
+Fixture generation is separate from initialisation, preview calls, waveform
+extraction/publication, caption calls, undo/redo and 4K rendering calls. Names
+ending in `calls_total` report a batch duration, not individual-call samples.
+Preview calls do not measure paced display or audio/video synchronisation.
+`texture_of` measures the host call, without device timestamp queries or a
+presentation wait. Monitor clearing does not prove cold OS/driver/reader caches.
+
+Process RSS/high-water counters are `null` when unavailable. DRM values identify
+each device and are device-wide, not per-process or necessarily the selected
+adapter; an empty list means no available DRM counters. Actual zeros stay zero.
+The before/after close counters and existing assertions remain; one close does
+not demonstrate a memory plateau or exercise a resource that was already empty.
+
+The pure counter/statistics helpers can be checked without Slint or native media
+libraries, from `src/`:
+
+```sh
+rustc --edition 2024 --test -D warnings crates/concat/src/performance_metrics.rs -o /tmp/clovercut-performance-metrics-tests
+/tmp/clovercut-performance-metrics-tests
+```
+
+These four cases and the four Python collector cases run in **Headless quality
+checks**. They qualify reporting logic, not graphical runtime performance.
