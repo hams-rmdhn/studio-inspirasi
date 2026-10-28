@@ -672,20 +672,16 @@ fn write_recents(config: &Path, entries: &[ProjectInfo]) -> Result<(), String> {
         .map_err(|error| format!("could not write the recents list: {error}"))
 }
 
-/// Compares paths case-insensitively, because Windows does, and on Windows
-/// with either slash, because a path typed or joined with `/` names the same
-/// folder as the one the file dialog hands back with `\`. A trailing
-/// separator names the same folder too.
+/// Match the path rules used for bin media: Windows ignores ASCII case and
+/// accepts either slash; elsewhere case and literal backslashes are significant.
+/// A trailing platform separator still names the same folder.
 fn same_path(left: &str, right: &str) -> bool {
-    fn spelled(path: &str) -> String {
-        let path = if cfg!(windows) {
-            path.replace('/', "\\")
-        } else {
-            path.to_owned()
-        };
-        path.trim_end_matches(['/', '\\']).to_owned()
+    if cfg!(windows) {
+        let spelled = |path: &str| path.replace('/', "\\").trim_end_matches('\\').to_owned();
+        spelled(left).eq_ignore_ascii_case(&spelled(right))
+    } else {
+        left.trim_end_matches('/') == right.trim_end_matches('/')
     }
-    spelled(left).eq_ignore_ascii_case(&spelled(right))
 }
 
 /// Turns a project name into something a filesystem will accept. Also used
@@ -778,6 +774,40 @@ mod tests {
         assert_eq!(read[1].canvas, [0, 0, 0, 0]);
     }
 
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn recents_keep_distinct_unix_paths_when_remembering_and_forgetting() {
+        let root = tempfile::tempdir().unwrap();
+        let config = root.path().join("config");
+        let location = root.path().to_str().unwrap();
+        let upper = create(location, "Film", 64, 36, 24, 1).unwrap();
+        let lower = create(location, "film", 64, 36, 24, 1).unwrap();
+        remember(&config, &upper).unwrap();
+        remember(&config, &lower).unwrap();
+        assert_eq!(
+            list(&config).len(),
+            2,
+            "case-distinct projects must both remain"
+        );
+        forget(&config, &upper.path).unwrap();
+        let retained = list(&config);
+        assert_eq!(retained.len(), 1);
+        assert_eq!(retained[0].path, lower.path);
+
+        // A literal backslash is part of a Unix name, even at the end.
+        // Missing projects remain in recents too, so no fixture file is needed.
+        let mut backslash = lower.clone();
+        backslash.path.push('\\');
+        remember(&config, &backslash).unwrap();
+        assert_eq!(read_recents(&config).len(), 2);
+        forget(&config, &format!("{}/", lower.path)).unwrap();
+        let retained = read_recents(&config);
+        assert_eq!(retained.len(), 1);
+        assert_eq!(retained[0].path, backslash.path);
+        assert!(is_project(Path::new(&upper.path)));
+        assert!(is_project(Path::new(&lower.path)));
+    }
+
     #[test]
     fn sanitises_names_windows_would_reject() {
         assert_eq!(folder_name("My: Project?"), "My- Project-");
@@ -867,8 +897,8 @@ mod tests {
     }
 
     #[test]
-    fn paths_compare_case_insensitively() {
-        assert!(same_path("D:\\Work\\Film", "d:\\work\\film"));
+    fn paths_follow_platform_case_rules() {
+        assert_eq!(same_path("D:\\Work\\Film", "d:\\work\\film"), cfg!(windows));
         assert!(!same_path("D:\\Work\\Film", "D:\\Work\\Other"));
         assert!(same_path("/work/film/", "/work/film"));
     }

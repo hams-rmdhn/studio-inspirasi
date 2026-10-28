@@ -18,6 +18,22 @@ cargo clippy --locked -p concat-core -p concat-project --all-targets -- -D warni
 cargo test --locked -p concat-core -p concat-project
 ```
 
+Project-storage changes also run in the fast job. The isolated check compiles the
+actual `concat-host/src/projects.rs` source with its existing tests, including
+recents, legacy manifests, ordered/concurrent saves and failure recovery:
+
+```sh
+python3 scripts/check_project_io.py
+```
+
+Run this command from the repository root. `--offline` uses already cached
+packages. The script selects the pinned toolchain through `src/`, uses a temporary
+manifest with the workspace version, and reuses exact dependency versions and a
+copy of the workspace lockfile. The workspace lockfile stays unchanged. The check
+needs no FFmpeg/Slint/GPU/audio libraries and adds no workspace crate. It qualifies
+this storage module, not the host's full media/service integration. Windows-only
+cases still require Windows qualification; Linux runs do not execute them.
+
 ## Ordinary validation
 
 | Suite | Command | Requirements |

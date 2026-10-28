@@ -113,6 +113,23 @@ the existing gRPC second pass for now: its measured cost is only 5.644 seconds.
   baselines, the separate graphical lifecycle suite and interactive qualification
   remain pending. See [runtime report instructions](docs/TESTING.md#opt-in-runtime-performance-report).
 
+## Execution record — fourth increment
+
+- Fixed a confirmed recent-project bug: Unix paths differing by case or a literal
+  trailing backslash were collapsed by Windows-style comparison. Remember/forget
+  now follows the same platform policy as media-bin paths; Windows case/slash
+  handling is preserved. Forgetting a row leaves project folders intact.
+- A Linux persistence regression failed before the fix (one recent entry instead
+  of two), then passed after it. The existing path-comparison test now expresses
+  the platform contract instead of assuming Windows rules everywhere.
+- `check_project_io.py` compiles the actual host storage source in a disposable
+  crate using the checkout's dependency versions and lockfile. It does not copy
+  storage logic or alter the workspace lockfile. This extends fast CI to recents,
+  legacy manifests, ordered/concurrent saves and durability failures without
+  native media/UI compilation.
+- Local validation: all 16 storage cases, focused Clippy, formatting and workflow
+  lint passed. This narrow check does not replace full host/release qualification.
+
 ## Priorities
 
 - **P0:** validation that can incorrectly report success, or omit required release checks.

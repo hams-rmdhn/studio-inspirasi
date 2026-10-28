@@ -13,6 +13,8 @@ on:
     paths:
       - '.github/workflows/headless-quality.yml'
       - 'scripts/ci_timings.py'
+      - 'scripts/check_project_io.py'
+      - 'src/crates/concat-host/src/projects.rs'
       - 'scripts/test_ci_timings.py'
       - 'scripts/performance_report.py'
       - 'scripts/test_performance_report.py'
@@ -27,6 +29,8 @@ on:
     paths:
       - '.github/workflows/headless-quality.yml'
       - 'scripts/ci_timings.py'
+      - 'scripts/check_project_io.py'
+      - 'src/crates/concat-host/src/projects.rs'
       - 'scripts/test_ci_timings.py'
       - 'scripts/performance_report.py'
       - 'scripts/test_performance_report.py'
@@ -77,6 +81,8 @@ jobs:
       - name: Lint editing and document logic
         working-directory: src
         run: cargo clippy --locked -p concat-core -p concat-project --all-targets -- -D warnings
+      - name: Project persistence regressions without native media dependencies
+        run: python3 scripts/check_project_io.py
       - name: Editing and document regressions
         working-directory: src
         run: cargo test --locked -p concat-core -p concat-project
