@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Jareer and Concat contributors
 
-//! Phase 6: Performance and Memory Optimization Benchmarks & Lifecycle Verification.
+//! Opt-in preview/API-call timings and project-close lifecycle assertions.
 //!
-//! Covers Tasks 6.1, 6.2, 6.3, 6.4, and 6.5:
-//! - 6.1: Reference machine, startup, seek latency, frame time, RSS & GPU memory.
-//! - 6.2: Long audio, caption-heavy (240 cues), and layered 4K project profiling
-//!   with separated decode, text layout/paint, UI publishing, and GPU composition costs.
-//! - 6.3: Memory plateau across seek/play/project-switch cycles, cache eviction,
-//!   old-project resource release, and 200 undo/redo steps.
+//! Samples describe host calls, not device execution, presented-frame latency or
+//! a proven memory plateau. OS caches are uncontrolled. Structured records retain
+//! raw samples and distinguish unavailable process counters from device-wide VRAM.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -21,43 +18,44 @@ use concat_project::model::TextStyle;
 
 use super::{Models, Studio};
 
-/// Reads current process VmRSS and VmHWM in bytes from `/proc/self/status`.
-fn read_process_memory_bytes() -> (u64, u64) {
-    let Ok(status) = std::fs::read_to_string("/proc/self/status") else {
-        return (0, 0);
-    };
-    let mut rss_kb = 0u64;
-    let mut hwm_kb = 0u64;
-    for line in status.lines() {
-        if let Some(rest) = line.strip_prefix("VmRSS:") {
-            rss_kb = rest
-                .split_whitespace()
-                .next()
-                .and_then(|s| s.parse::<u64>().ok())
-                .unwrap_or(0);
-        } else if let Some(rest) = line.strip_prefix("VmHWM:") {
-            hwm_kb = rest
-                .split_whitespace()
-                .next()
-                .and_then(|s| s.parse::<u64>().ok())
-                .unwrap_or(0);
-        }
-    }
-    (rss_kb * 1024, hwm_kb * 1024)
+#[path = "performance_metrics.rs"]
+mod metrics;
+
+fn read_process_memory_bytes() -> metrics::ProcessMemory {
+    std::fs::read_to_string("/proc/self/status")
+        .map(|status| metrics::process_memory(&status))
+        .unwrap_or_default()
 }
 
-/// Reads observable AMD/DRM GPU VRAM usage in bytes if exposed by sysfs.
-fn read_drm_vram_bytes() -> Option<u64> {
-    for card in ["card0", "card1", "card2"] {
-        let path = format!("/sys/class/drm/{card}/device/mem_info_vram_used");
-        if let Ok(text) = std::fs::read_to_string(&path)
-            && let Ok(bytes) = text.trim().parse::<u64>()
-            && bytes > 0
-        {
-            return Some(bytes);
-        }
-    }
-    None
+// One JSON object per line survives partial failures through the child stdout.
+fn record(event: &str, data: serde_json::Value) {
+    println!(
+        "CLOVERCUT_BENCHMARK {}",
+        serde_json::json!({"schema_version": 1, "event": event, "data": data})
+    );
+}
+
+fn record_samples(scenario: &str, run: usize, samples: &[f64]) {
+    let (mean, p95, max) = stats_summary(samples);
+    record(
+        "samples",
+        serde_json::json!({
+            "scenario": scenario, "run": run + 1, "unit": "ms",
+            "values": samples, "mean": mean, "p95": p95, "max": max,
+        }),
+    );
+}
+
+fn record_memory(stage: &str) {
+    let memory = read_process_memory_bytes();
+    record(
+        "memory",
+        serde_json::json!({
+            "stage": stage, "rss_bytes": memory.rss_bytes,
+            "high_water_bytes": memory.high_water_bytes,
+            "drm_device_wide_vram_bytes": metrics::drm_device_vram(Path::new("/sys/class/drm")),
+        }),
+    );
 }
 
 fn generate_fixtures(dir: &Path) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
@@ -194,19 +192,8 @@ fn generate_fixtures(dir: &Path) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     (hd_a, hd_b, uhd_4k, long_audio)
 }
 
-fn stats_summary(samples_ms: &[f64]) -> (f64, f64, f64) {
-    if samples_ms.is_empty() {
-        return (0.0, 0.0, 0.0);
-    }
-    let mut sorted = samples_ms.to_vec();
-    sorted.sort_by(f64::total_cmp);
-    let mean = sorted.iter().sum::<f64>() / sorted.len() as f64;
-    let p95_idx = ((sorted.len() as f64 * 0.95).ceil() as usize)
-        .saturating_sub(1)
-        .min(sorted.len() - 1);
-    let p95 = sorted[p95_idx];
-    let max = *sorted.last().unwrap();
-    (mean, p95, max)
+fn stats_summary(samples: &[f64]) -> (f64, f64, f64) {
+    metrics::stats_summary(samples).expect("benchmark samples must be nonempty and finite")
 }
 
 #[test]
@@ -245,26 +232,17 @@ fn phase6_performance_and_memory_suite() {
     let root = PathBuf::from(std::env::var("TMPDIR").unwrap());
     let media_dir = root.join("media");
     std::fs::create_dir_all(&media_dir).unwrap();
+    let fixture_start = Instant::now();
     let (hd_a, hd_b, uhd_4k, long_audio) = generate_fixtures(&media_dir);
-
-    println!("=== PHASE 6 PERFORMANCE & MEMORY SUITE ===");
-    println!(
-        "Total physical RAM: {:.2} GB | ReaderPool budget: {:.1} MB",
-        concat_host::memory::total().unwrap_or(0) as f64 / (1024.0 * 1024.0 * 1024.0),
-        concat_media::ReaderPool::frame_budget(concat_host::memory::total()) as f64
-            / (1024.0 * 1024.0)
+    record_samples(
+        "fixture_generation",
+        0,
+        &[fixture_start.elapsed().as_secs_f64() * 1000.0],
     );
-    let (rss0, hwm0) = read_process_memory_bytes();
-    let vram0 = read_drm_vram_bytes();
-    println!(
-        "Initial RSS: {:.1} MB | HWM: {:.1} MB | DRM VRAM: {:?}",
-        rss0 as f64 / 1048576.0,
-        hwm0 as f64 / 1048576.0,
-        vram0.map(|v| format!("{:.1} MB", v as f64 / 1048576.0))
-    );
+    record_memory("before_initialisation");
 
     // -------------------------------------------------------------------------
-    // TASK 6.1: Cold & Warm Startup, Seek Latency, Continuous Frame Time
+    // TASK 6.1: Initialisation, seek and sequential preview API calls
     // -------------------------------------------------------------------------
     let t_cold_start = Instant::now();
     let gpu = crate::platform::select_backend(|_| {}, || {}, || {}, || {}).unwrap();
@@ -276,6 +254,23 @@ fn phase6_performance_and_memory_suite() {
     studio.publish(&app, &models);
     let cold_startup_ms = t_cold_start.elapsed().as_secs_f64() * 1000.0;
 
+    record(
+        "context",
+        serde_json::json!({
+            "os": std::env::consts::OS, "architecture": std::env::consts::ARCH,
+            "source_sha": std::env::var("CLOVERCUT_BENCHMARK_SOURCE").ok(),
+            "machine_label": std::env::var("CLOVERCUT_BENCHMARK_MACHINE").ok(),
+            "toolchain": std::env::var("CLOVERCUT_BENCHMARK_TOOLCHAIN").ok(),
+            "window_adapter": crate::gpu::adapter_description(),
+            "physical_ram_bytes": concat_host::memory::total(),
+            "reader_pool_budget_bytes": concat_media::ReaderPool::frame_budget(concat_host::memory::total()),
+            "preview_pixels": [960, 540], "layered_pixels": [3840, 2160],
+            "audio_seconds": 180, "caption_cues": 240, "cache_state": "uncontrolled",
+            "gpu_timing": "host texture_of call; not device execution or presentation latency",
+            "drm_scope": "device-wide; not per-process or tied to the selected adapter",
+        }),
+    );
+    record_samples("initialisation_and_publish", 0, &[cold_startup_ms]);
     let mut warm_open_runs = Vec::new();
     let proj_6_1 =
         projects::create(root.to_str().unwrap(), "Bench_6_1", 1920, 1080, 30, 1).unwrap();
@@ -289,9 +284,11 @@ fn phase6_performance_and_memory_suite() {
         }
     }
     println!(
-        "[6.1 Startup] Cold init+publish: {:.2} ms | Warm project open (3 runs): {:.2} ms, {:.2} ms, {:.2} ms",
+        "[6.1 Startup] Init+publish: {:.2} ms | Empty project open (3 runs): {:.2} ms, {:.2} ms, {:.2} ms",
         cold_startup_ms, warm_open_runs[0], warm_open_runs[1], warm_open_runs[2]
     );
+
+    record_samples("empty_project_open_and_publish", 0, &warm_open_runs);
 
     // Populate Bench_6_1 with 2 HD clips
     let m_hd_a = studio
@@ -326,7 +323,8 @@ fn phase6_performance_and_memory_suite() {
         })
         .unwrap();
 
-    // Measure Cold Seek vs Warm Cached Seek across 3 runs (20 timestamps across 8s)
+    // Two passes over 20 timestamps; only monitor state is explicitly cleared.
+    // Reader, driver and OS caches are not qualified as cold or warm.
     for run in 0..3 {
         studio.host.monitor.clear();
         let mut cold_seeks = Vec::new();
@@ -373,10 +371,12 @@ fn phase6_performance_and_memory_suite() {
             let _tex = studio.host.monitor.texture_of(&sources, spec).unwrap();
             warm_seeks.push(t0.elapsed().as_secs_f64() * 1000.0);
         }
+        record_samples("seek_first_pass_after_monitor_clear", run, &cold_seeks);
+        record_samples("seek_repeated_timestamps", run, &warm_seeks);
         let (c_mean, c_p95, c_max) = stats_summary(&cold_seeks);
         let (w_mean, w_p95, w_max) = stats_summary(&warm_seeks);
         println!(
-            "[6.1 Seek Run {}] Cold seek (20 pts): mean={:.2}ms p95={:.2}ms max={:.2}ms | Warm cached seek: mean={:.3}ms p95={:.3}ms max={:.3}ms",
+            "[6.1 Seek Run {}] First pass after monitor clear (20 pts): mean={:.2}ms p95={:.2}ms max={:.2}ms | Repeated timestamps: mean={:.3}ms p95={:.3}ms max={:.3}ms",
             run + 1,
             c_mean,
             c_p95,
@@ -387,7 +387,7 @@ fn phase6_performance_and_memory_suite() {
         );
     }
 
-    // Measure continuous 90-frame playback frame times (3 runs)
+    // Sequential preview calls, not paced presentation or audio/video sync.
     for run in 0..3 {
         studio.host.monitor.clear();
         let mut frame_times = Vec::new();
@@ -417,6 +417,7 @@ fn phase6_performance_and_memory_suite() {
             }
             frame_times.push(ms);
         }
+        record_samples("sequential_preview_call", run, &frame_times);
         let (mean, p95, max) = stats_summary(&frame_times);
         println!(
             "[6.1 Playback 90f Run {}] mean={:.2}ms p95={:.2}ms max={:.2}ms (>33.3ms frames: {}/90)",
@@ -485,6 +486,8 @@ fn phase6_performance_and_memory_suite() {
         let peaks_ms = t_peaks.elapsed().as_secs_f64() * 1000.0;
         studio.peaks.insert(m_audio.clone(), Arc::new(pyramid));
 
+        record_samples("audio_peaks_extraction", run, &[peaks_ms]);
+
         // Clear cached wave SVG strings to measure cold vs warm wave_path generation
         studio.waves.borrow_mut().clear();
         let t_pub_cold = Instant::now();
@@ -494,6 +497,8 @@ fn phase6_performance_and_memory_suite() {
         let t_pub_warm = Instant::now();
         studio.publish_lanes(&app, &models);
         let pub_warm_ms = t_pub_warm.elapsed().as_secs_f64() * 1000.0;
+        record_samples("audio_publish_cleared_waves", run, &[pub_cold_ms]);
+        record_samples("audio_publish_repeated", run, &[pub_warm_ms]);
 
         println!(
             "[6.2A Long Audio 180s Run {}] peaks_extract={:.2}ms | publish_lanes(cold_waves)={:.3}ms | publish_lanes(warm_waves)={:.3}ms | mapped_pcm={:.2}MB ({})",
@@ -604,13 +609,16 @@ fn phase6_performance_and_memory_suite() {
         }
         let preview_60_ms = t_preview_clips.elapsed().as_secs_f64() * 1000.0;
 
-        // 3. Measure UI publish_lanes on 270-clip timeline
+        // 3. Measure UI publish_lanes on caption-heavy timeline
         let t_pub = Instant::now();
         for cue in 0..20 {
             studio.playhead = cue as f64 * 0.5 + 0.1;
             studio.publish_lanes(&app, &models);
         }
         let pub_20_ms = t_pub.elapsed().as_secs_f64() * 1000.0;
+        record_samples("caption_flatten_60_calls_total", run, &[flat_60_ms]);
+        record_samples("caption_preview_60_calls_total", run, &[preview_60_ms]);
+        record_samples("caption_publish_20_calls_total", run, &[pub_20_ms]);
 
         println!(
             "[6.2B Caption-Heavy 240-cues Run {}] 60x flatten_timeline_in={:.2}ms ({:.3}ms/call) | 60x preview_clips(cue transitions)={:.2}ms ({:.3}ms/cue) | 20x publish_lanes={:.2}ms ({:.3}ms/pub) | titles_live={:.1}MB ({})",
@@ -627,7 +635,7 @@ fn phase6_performance_and_memory_suite() {
     }
 
     // -------------------------------------------------------------------------
-    // TASK 6.3 (Part 1): 200 Undo / Redo Steps on the 270-clip Caption Project
+    // TASK 6.3 (Part 1): 200 Undo / Redo Steps on the Caption Project
     // -------------------------------------------------------------------------
     let first_clip_id = studio.timeline().clips[0].id.clone();
     for run in 0..3 {
@@ -662,23 +670,27 @@ fn phase6_performance_and_memory_suite() {
         let redo_ms = t_redo.elapsed().as_secs_f64() * 1000.0;
         assert_eq!(redone, 200);
 
-        let (rss_now, _) = read_process_memory_bytes();
+        record_samples("history_apply_210_calls_total", run, &[apply_ms]);
+        record_samples("history_undo_200_calls_total", run, &[undo_ms]);
+        record_samples("history_redo_200_calls_total", run, &[redo_ms]);
+        record_memory("after_history_cycle");
+        let rss_now = read_process_memory_bytes().rss_bytes;
         println!(
-            "[6.3 200-Undo/Redo Run {}] 210 applies={:.2}ms | 200 undos={:.2}ms ({:.4}ms/step) | 200 redos={:.2}ms ({:.4}ms/step) | RSS={:.1}MB",
+            "[6.3 200-Undo/Redo Run {}] 210 applies={:.2}ms | 200 undos={:.2}ms ({:.4}ms/step) | 200 redos={:.2}ms ({:.4}ms/step) | RSS bytes={:?}",
             run + 1,
             apply_ms,
             undo_ms,
             undo_ms / 200.0,
             redo_ms,
             redo_ms / 200.0,
-            rss_now as f64 / 1048576.0
+            rss_now
         );
     }
 
     studio.close_project().unwrap();
 
     // -------------------------------------------------------------------------
-    // TASK 6.2C: Layered 4K Project (3840x2160 3-layer video + 4K shadow title)
+    // TASK 6.2C: Layered 4K Project (3840x2160 two video layers + 4K shadow title)
     // -------------------------------------------------------------------------
     let proj_4k =
         projects::create(root.to_str().unwrap(), "Bench_6_2_4K", 3840, 2160, 30, 1).unwrap();
@@ -788,6 +800,7 @@ fn phase6_performance_and_memory_suite() {
             assert_eq!(rendered.width, 3840);
             paint_times.push(t_paint.elapsed().as_secs_f64() * 1000.0);
         }
+        record_samples("4k_title_render_call", run, &paint_times);
         let (mean, p95, max) = stats_summary(&paint_times);
         println!(
             "[6.2C 4K Title Paint (3840x2160 shadow+stroke+plate) Run {}] mean={:.2}ms p95={:.2}ms max={:.2}ms",
@@ -798,7 +811,7 @@ fn phase6_performance_and_memory_suite() {
         );
     }
 
-    // Measure 4K Layered Decode vs GPU Composite across 3 runs (10 frames at 3840x2160)
+    // Host call timings, without device timestamp queries or presentation waits.
     for run in 0..3 {
         studio.host.monitor.clear();
         let mut decode_times = Vec::new();
@@ -827,10 +840,12 @@ fn phase6_performance_and_memory_suite() {
             let _tex = studio.host.monitor.texture_of(&sources, spec).unwrap();
             gpu_times.push(t_gpu.elapsed().as_secs_f64() * 1000.0);
         }
+        record_samples("4k_frame_sources_call", run, &decode_times);
+        record_samples("4k_texture_of_host_call", run, &gpu_times);
         let (d_mean, d_p95, d_max) = stats_summary(&decode_times);
         let (g_mean, g_p95, g_max) = stats_summary(&gpu_times);
         println!(
-            "[6.2C 4K Layered 3840x2160 Run {}] decode(frame_sources): mean={:.2}ms p95={:.2}ms max={:.2}ms | gpu_composite(texture_of): mean={:.2}ms p95={:.2}ms max={:.2}ms | pool={:.1}MB gpu_pool={:.1}MB",
+            "[6.2C 4K Layered 3840x2160 Run {}] decode(frame_sources): mean={:.2}ms p95={:.2}ms max={:.2}ms | texture_of(host call): mean={:.2}ms p95={:.2}ms max={:.2}ms | pool={:.1}MB gpu_pool={:.1}MB",
             run + 1,
             d_mean,
             d_p95,
@@ -846,6 +861,7 @@ fn phase6_performance_and_memory_suite() {
     // -------------------------------------------------------------------------
     // TASK 6.3 (Part 2): Project-Switch & Close Resource Release Verification
     // -------------------------------------------------------------------------
+    record_memory("before_project_close");
     let before_close_pool = studio.host.monitor.pool_cached_bytes();
     let before_close_gpu = studio.host.monitor.gpu_pool_bytes();
     let before_close_titles = studio.host.titles.live_bytes();
@@ -859,11 +875,20 @@ fn phase6_performance_and_memory_suite() {
     let after_close_titles = studio.host.titles.live_bytes();
     let after_close_blocks = studio.title_blocks.len();
     let after_close_pcm = studio.host.playback.mapped_bytes();
-    let (rss_end, hwm_end) = read_process_memory_bytes();
-    let vram_end = read_drm_vram_bytes();
+    record_memory("after_project_close");
+    record(
+        "lifecycle",
+        serde_json::json!({
+            "cpu_pool_bytes": [before_close_pool, after_close_pool],
+            "gpu_pool_bytes": [before_close_gpu, after_close_gpu],
+            "title_cache_bytes": [before_close_titles, after_close_titles],
+            "title_blocks": [before_close_blocks, after_close_blocks],
+            "mapped_pcm_bytes": [before_close_pcm, after_close_pcm],
+        }),
+    );
 
     println!(
-        "[6.3 Lifecycle Close] Before close -> After close:\n  CPU Frame Pool: {:.2} MB -> {:.2} MB\n  GPU Layer Pool: {:.2} MB -> {:.2} MB\n  Live Titles Cache: {:.2} MB -> {:.2} MB\n  Title Blocks Map: {} -> {}\n  PCM Mapped Audio: {:.2} MB -> {:.2} MB\n  Process RSS: {:.1} MB (HWM {:.1} MB) | DRM VRAM: {:?}",
+        "[6.3 Lifecycle Close] Before close -> After close:\n  CPU Frame Pool: {:.2} MB -> {:.2} MB\n  GPU Layer Pool: {:.2} MB -> {:.2} MB\n  Live Titles Cache: {:.2} MB -> {:.2} MB\n  Title Blocks Map: {} -> {}\n  PCM Mapped Audio: {:.2} MB -> {:.2} MB",
         before_close_pool as f64 / 1048576.0,
         after_close_pool as f64 / 1048576.0,
         before_close_gpu as f64 / 1048576.0,
@@ -874,9 +899,6 @@ fn phase6_performance_and_memory_suite() {
         after_close_blocks,
         before_close_pcm as f64 / 1048576.0,
         after_close_pcm as f64 / 1048576.0,
-        rss_end as f64 / 1048576.0,
-        hwm_end as f64 / 1048576.0,
-        vram_end.map(|v| format!("{:.1} MB", v as f64 / 1048576.0))
     );
 
     assert_eq!(after_close_pool, 0, "CPU frame pool must be empty on close");
@@ -892,5 +914,9 @@ fn phase6_performance_and_memory_suite() {
     assert_eq!(
         after_close_pcm, 0,
         "PCM memory-mapped audio cache must be cleared on close"
+    );
+    record(
+        "complete",
+        serde_json::json!({"lifecycle_assertions": "passed"}),
     );
 }

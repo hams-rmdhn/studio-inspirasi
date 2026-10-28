@@ -14,6 +14,10 @@ on:
       - '.github/workflows/headless-quality.yml'
       - 'scripts/ci_timings.py'
       - 'scripts/test_ci_timings.py'
+      - 'scripts/performance_report.py'
+      - 'scripts/test_performance_report.py'
+      - 'src/crates/concat/src/performance_metrics.rs'
+      - 'src/crates/concat/src/phase6_performance_tests.rs'
       - 'src/crates/concat-core/**'
       - 'src/crates/concat-project/**'
       - 'src/Cargo.toml'
@@ -24,6 +28,10 @@ on:
       - '.github/workflows/headless-quality.yml'
       - 'scripts/ci_timings.py'
       - 'scripts/test_ci_timings.py'
+      - 'scripts/performance_report.py'
+      - 'scripts/test_performance_report.py'
+      - 'src/crates/concat/src/performance_metrics.rs'
+      - 'src/crates/concat/src/phase6_performance_tests.rs'
       - 'src/crates/concat-core/**'
       - 'src/crates/concat-project/**'
       - 'src/Cargo.toml'
@@ -46,8 +54,10 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
-      - name: Timing report regressions
-        run: python3 -m unittest discover -s scripts -p test_ci_timings.py -v
+      - name: Structured report regressions
+        run: |
+          python3 -m unittest discover -s scripts -p test_ci_timings.py -v
+          python3 -m unittest discover -s scripts -p test_performance_report.py -v
       - name: The pinned toolchain
         id: toolchain
         run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' src/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
@@ -59,6 +69,11 @@ jobs:
         with:
           workspaces: src
           shared-key: headless-project
+      - name: Pure performance measurement regressions
+        working-directory: src
+        run: |
+          rustc --edition 2024 --test -D warnings crates/concat/src/performance_metrics.rs -o /tmp/clovercut-performance-metrics-tests
+          /tmp/clovercut-performance-metrics-tests
       - name: Lint editing and document logic
         working-directory: src
         run: cargo clippy --locked -p concat-core -p concat-project --all-targets -- -D warnings
