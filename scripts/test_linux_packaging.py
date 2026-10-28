@@ -224,10 +224,13 @@ class AurBump(unittest.TestCase):
         self.env = {**os.environ, 'PATH': str(self.bin)+os.pathsep+os.environ['PATH'],
                     'CALLS': str(self.r / 'calls'), 'SUMS_FILE': str(self.r / 'sums')}
         pkg = (ROOT / 'assets/arch/PKGBUILD').read_text()
+        self.version = re.search(r'^pkgver=(.+)$', pkg, re.M).group(1)
+        major, minor, patch = map(int, self.version.split('.'))
+        self.next_version = f'{major}.{minor}.{patch + 1}'
         lines = []
         for arch in ['x86_64', 'aarch64']:
             value = re.search(r"sha256sums_"+arch+r"=\('([^']+)'\)", pkg).group(1)
-            lines.append(value+'  Clovercut-0.1.8-'+arch+'.AppImage')
+            lines.append(value+'  Clovercut-'+self.version+'-'+arch+'.AppImage')
         (self.r / 'sums').write_text('\n'.join(lines)+'\n')
 
     def bump(self, *args):
@@ -235,25 +238,27 @@ class AurBump(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which('makepkg'), 'makepkg required')
     def test_check_rejects_stale_srcinfo(self):
-        self.assertEqual(self.bump('0.1.8', '--check').returncode, 0)
+        result = self.bump(self.version, '--check')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         info = self.r / 'assets/arch/.SRCINFO'
-        info.write_text(info.read_text().replace('pkgver = 0.1.8', 'pkgver = 0.1.7'))
-        self.assertNotEqual(self.bump('0.1.8', '--check').returncode, 0)
-        self.assertIn('pkgver = 0.1.7', info.read_text())
+        stale = '0.0.0' if self.version != '0.0.0' else '0.0.1'
+        info.write_text(info.read_text().replace(f'pkgver = {self.version}', f'pkgver = {stale}'))
+        self.assertNotEqual(self.bump(self.version, '--check').returncode, 0)
+        self.assertIn(f'pkgver = {stale}', info.read_text())
 
     @unittest.skipUnless(shutil.which('makepkg'), 'makepkg required')
     def test_check_rejects_unreachable_checksums(self):
         self.env['NETWORK_FAIL'] = '1'
-        self.assertNotEqual(self.bump('0.1.8', '--check').returncode, 0)
+        self.assertNotEqual(self.bump(self.version, '--check').returncode, 0)
 
     @unittest.skipUnless(shutil.which('makepkg'), 'makepkg required')
     def test_failed_generation_preserves_both_original_files(self):
         old = {n: (self.r / 'assets/arch' / n).read_bytes() for n in ['PKGBUILD', '.SRCINFO']}
-        (self.r / 'sums').write_text('a'*64+'  Clovercut-0.1.9-x86_64.AppImage\n'+'b'*64+'  Clovercut-0.1.9-aarch64.AppImage\n')
+        (self.r / 'sums').write_text('a'*64+f'  Clovercut-{self.next_version}-x86_64.AppImage\n'+'b'*64+f'  Clovercut-{self.next_version}-aarch64.AppImage\n')
         tool = self.bin / 'makepkg'
         tool.write_text('#!/bin/sh\nexit 1\n')
         tool.chmod(0o755)
-        self.assertNotEqual(self.bump('0.1.9').returncode, 0)
+        self.assertNotEqual(self.bump(self.next_version).returncode, 0)
         for name, value in old.items():
             self.assertEqual((self.r / 'assets/arch' / name).read_bytes(), value)
 

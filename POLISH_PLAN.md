@@ -20,6 +20,10 @@ Implemented locally:
   final picture content. All five export reliability cases passed.
 - P0: reusable x86_64/ARM64 package regressions gate release publication on the
   exact source SHA; the connector has a Node 22 CI job; reports survive success.
+- P0: AUR regression fixtures follow the package version instead of assuming
+  0.1.8; updating package metadata no longer breaks an unrelated stale-file test.
+- Test prerequisites and execution policies for all 28 ignored baseline cases
+  are documented in [test suites and qualification](docs/TESTING.md).
 - P1: common icon buttons expose their role, label, enabled state and default
   action. Slint generation passed; screen-reader qualification remains pending.
 - P1/P2: Enhance request and estimate share a small pure planning module, tested
