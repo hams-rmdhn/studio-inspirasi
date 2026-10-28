@@ -4415,6 +4415,21 @@ mod tests {
             undos += 1;
         }
         assert_eq!(undos, 200);
+        let oldest = editor.project().active().clip(&clip_id).expect("retained");
+        assert!(
+            (oldest.offset_x - 0.005).abs() < 1e-12,
+            "the five evicted edits must remain after exhausting undo"
+        );
+        let mut redos = 0;
+        while editor.redo() {
+            redos += 1;
+        }
+        assert_eq!(redos, 200, "every retained edit must remain redoable");
+        let latest = editor.project().active().clip(&clip_id).expect("retained");
+        assert!(
+            (latest.offset_x - 0.205).abs() < 1e-12,
+            "redo must restore the final edit, not just traverse 200 snapshots"
+        );
     }
 
     #[test]

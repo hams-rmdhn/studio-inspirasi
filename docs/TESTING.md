@@ -5,6 +5,19 @@ in [building](RELEASING.md). Run Python/Node commands from the repository root.
 Use full commit SHAs for workflow `ref` inputs; checkout does not resolve an
 abbreviated SHA as a commit.
 
+## Fast editing/document feedback
+
+Changes to `concat-core` and `concat-project` run **Headless quality checks** on
+pushes and pull requests. It uses the pinned Rust toolchain and checks these two
+crates without Slint, FFmpeg, GPU or audio dependencies. The full release CI stays
+mandatory; this narrow check does not qualify the desktop application.
+
+```sh
+cd src
+cargo clippy --locked -p concat-core -p concat-project --all-targets -- -D warnings
+cargo test --locked -p concat-core -p concat-project
+```
+
 ## Ordinary validation
 
 | Suite | Command | Requirements |
@@ -103,3 +116,31 @@ Keep tests that protect saved data, existing output files, undo, ownership,
 locks and preview/export agreement. Consolidation requires a named replacement
 assertion and evidence that the same failure is still detected. The
 [quality audit](audits/2026-10-28.md) records the current disposition decisions.
+
+## Structured CI timing reports
+
+Export the job metadata for a completed run and summarise it from the repository
+root. Supply the full SHA of the source actually tested: a reusable workflow's
+own branch/SHA may differ from its checkout `ref`.
+
+```sh
+gh run view 40666635410 -R tulcoturo/clovercut --json jobs > /tmp/clovercut-ci-jobs.json
+python3 scripts/ci_timings.py /tmp/clovercut-ci-jobs.json \
+  --output /tmp/clovercut-ci-timings.json \
+  --source c23a64da016a78e0ec13cacd1999f560d94e155f \
+  --run-id 40666635410 --runner-label ubuntu-24.04
+python3 -m unittest discover -s scripts -p test_ci_timings.py -v
+```
+
+The versioned JSON contains every step, its conclusion, elapsed wall seconds and
+observed totals by category. Incomplete/skipped intervals are `null`; failure
+costs are retained. The gRPC and documentation steps include compilation, so their
+full durations must not be labelled test execution. Parallel job durations must
+not be summed into workflow wall time. API timestamps have second resolution.
+
+Cache state defaults to `unknown`. Set `--cache-state cold` or `warm` only with
+recorded evidence; a restored cache does not prove every crate was warm. Compare
+the same runner/toolchain/profiles/dependencies and retain the matching command,
+source and cache evidence. This tool reports observations and sets no performance
+budgets. The [first increment report](audits/data/2026-10-28-ci-timings.json) is a
+baseline with unknown cache state, not a controlled cold/warm comparison.

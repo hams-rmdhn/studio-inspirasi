@@ -66,6 +66,27 @@ Interactive graphical/audio and screen-reader qualification are still pending.
 The remaining sections are planned work, not a completed-programme claim. Keep
 the existing gRPC second pass for now: its measured cost is only 5.644 seconds.
 
+## Execution record — second increment
+
+- Measured build cost: a versioned [CI timing report](docs/audits/data/2026-10-28-ci-timings.json)
+  separates workspace lint, test compilation, execution and feature-enabled checks.
+  A reusable offline summariser preserves failed work and unavailable intervals.
+  Cache state is unknown; controlled cold/warm comparisons remain pending.
+- Fast feedback: `headless-quality.yml` checks `concat-core` and `concat-project`
+  on relevant pushes/PRs with no graphical compilation or native media libraries.
+  Full desktop/release gates remain in place.
+- Lifecycle contract: strengthened the existing undo-depth test to verify the
+  oldest retained state and exact final state after all redos, instead of only
+  counting 200 successful undo operations. No test was removed.
+- Local validation: 289 headless tests plus 2 documentation examples passed with
+  Rust 1.93.1; focused Clippy, formatting, 4 timing-report regressions and
+  actionlint passed under a 4 GiB per-process limit and two build jobs.
+- Phase-6 review: its printed GPU composition duration measures a host API call,
+  not proven device execution time; DRM VRAM is device-wide rather than per-process,
+  and missing process counters currently become zero. Keep this suite opt-in and
+  do not derive budgets from those values. Structured runtime sampling and the
+  graphical lifecycle split remain pending.
+
 ## Priorities
 
 - **P0:** validation that can incorrectly report success, or omit required release checks.

@@ -1,0 +1,67 @@
+name: Headless quality checks
+
+# Editing/document regressions do not need to compile the graphical application.
+# This complements the full release CI; it does not replace it.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Exact source ref (empty uses the selected branch)
+        type: string
+        default: ""
+  push:
+    paths:
+      - '.github/workflows/headless-quality.yml'
+      - 'scripts/ci_timings.py'
+      - 'scripts/test_ci_timings.py'
+      - 'src/crates/concat-core/**'
+      - 'src/crates/concat-project/**'
+      - 'src/Cargo.toml'
+      - 'src/Cargo.lock'
+      - 'src/rust-toolchain.toml'
+  pull_request:
+    paths:
+      - '.github/workflows/headless-quality.yml'
+      - 'scripts/ci_timings.py'
+      - 'scripts/test_ci_timings.py'
+      - 'src/crates/concat-core/**'
+      - 'src/crates/concat-project/**'
+      - 'src/Cargo.toml'
+      - 'src/Cargo.lock'
+      - 'src/rust-toolchain.toml'
+
+permissions:
+  contents: read
+
+jobs:
+  headless:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - name: Timing report regressions
+        run: python3 -m unittest discover -s scripts -p test_ci_timings.py -v
+      - name: The pinned toolchain
+        id: toolchain
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' src/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (v1)
+        with:
+          toolchain: ${{ steps.toolchain.outputs.channel }}
+          components: clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src
+          shared-key: headless-project
+      - name: Lint editing and document logic
+        working-directory: src
+        run: cargo clippy --locked -p concat-core -p concat-project --all-targets -- -D warnings
+      - name: Editing and document regressions
+        working-directory: src
+        run: cargo test --locked -p concat-core -p concat-project

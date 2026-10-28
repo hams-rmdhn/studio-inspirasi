@@ -2,7 +2,8 @@ name: CI
 run-name: ${{ inputs.connector_only && 'Audio connector checks' || 'Full CI' }} · ${{ inputs.ref || github.ref_name }}
 
 # Run the full engine checks manually or when preparing a release.
-# Ordinary pushes and pull requests do not start a compilation.
+# Ordinary pushes and pull requests do not start this graphical build.
+# headless-quality.yml checks editing/document changes without compiling the UI.
 #
 # Every action is pinned to a commit, with the tag it was in a comment
 # beside it: a tag can be moved to other code after a run has trusted it,
