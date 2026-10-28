@@ -81,6 +81,8 @@ the existing gRPC second pass for now: its measured cost is only 5.644 seconds.
 - Local validation: 289 headless tests plus 2 documentation examples passed with
   Rust 1.93.1; focused Clippy, formatting, 4 timing-report regressions and
   actionlint passed under a 4 GiB per-process limit and two build jobs.
+  The [headless GitHub CI](https://github.com/tulcoturo/clovercut/actions/runs/40680397227)
+  also passed all checks on source `8fe42d88`.
 - Phase-6 review: its printed GPU composition duration measures a host API call,
   not proven device execution time; DRM VRAM is device-wide rather than per-process,
   and missing process counters currently become zero. Keep this suite opt-in and
