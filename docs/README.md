@@ -1,5 +1,6 @@
 # Clovercut documentation
 
+- [Linux installation](INSTALLATION.md).
 - [Desktop editing](EDITING.md): timeline interaction, text, colour and cross-project clipboard.
 - [Keyboard shortcuts](KEYBOARD_SHORTCUTS.md).
 - [Audio and content sources](AUDIO_LIBRARY.md): OpenGameArt, YouTube Audio Library, Freesound and GIPHY.

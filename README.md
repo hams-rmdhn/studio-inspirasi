@@ -1,210 +1,93 @@
 <p align="center">
-  <img src="assets/typography.svg" alt="clovercut logo" width="460" />
+  <img src="assets/typography.svg" alt="Clovercut" width="460" />
 </p>
 
-<p align="center"><strong>Desktop-first, open-source video editor with built-in stock libraries and local AI.</strong></p>
-<p align="center">A local-first creative workspace: on-device captions, searchable assets, reusable edits and watermark-free exports.</p>
+<p align="center"><strong>A desktop video editor built around an organised timeline and integrated creative libraries.</strong></p>
 
 <p align="center">
-  <a href="https://tulcoturo.github.io/clovercut/"><img src="https://img.shields.io/badge/Website-tulcoturo.github.io%2Fclovercut-16b86a?style=flat-square" alt="clovercut website" /></a>
-  <a href="https://github.com/tulcoturo/clovercut/releases/tag/v0.1.8"><img src="https://img.shields.io/badge/Release-v0.1.8-00bcd4?style=flat-square" alt="Current version 0.1.8" /></a>
-  <a href="https://github.com/tulcoturo/clovercut/issues"><img src="https://img.shields.io/badge/Feedback-Issues-blue?style=flat-square" alt="Issues and Feedback" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0--or--later-16b86a?style=flat-square" alt="License: AGPL-3.0-or-later" /></a>
-  <img src="https://img.shields.io/badge/Desktop-Linux%20%7C%20Windows%20%7C%20macOS-blueviolet?style=flat-square" alt="Desktop focus: Linux, Windows, macOS" />
+  <a href="https://tulcoturo.github.io/clovercut/">Website</a> ·
+  <a href="https://github.com/tulcoturo/clovercut/releases">Download</a> ·
+  <a href="docs/README.md">Documentation</a> ·
+  <a href="https://github.com/tulcoturo/clovercut/issues">Report an issue</a>
 </p>
 
-<p align="center">
-  🌐 <strong>Official Website:</strong> <a href="https://tulcoturo.github.io/clovercut/">https://tulcoturo.github.io/clovercut/</a>
-</p>
+Clovercut is a free, open-source video editor for **Linux, Windows and macOS**.
+It builds on [Concat](https://github.com/jub0t/Concat), with its own desktop
+workflow: a fixed main video track, dedicated visual and audio lanes, workspace
+presets and searchable content libraries. Editing and AI processing run locally,
+with no Clovercut account, subscription or export watermark.
 
----
+![Clovercut desktop workspace with creative libraries, preview, inspector and colour-coded timeline](assets/screenshots/editor-workspace.png)
 
-## What is clovercut?
+## What Clovercut adds
 
-**clovercut** is a desktop-first video editor for Linux, Windows and macOS, designed for creators who want the intuitive, fast workflow of tools like CapCut without cloud lock-ins, paid subscription tiers, watermarks, or telemetry.
+Clovercut develops its own editing experience on top of Concat's engine.
+Its main additions and workflow differences are:
 
-The editing workflow is centred on a desktop computer: keyboard and mouse, a multi-track timeline, and a full-size preview and inspector. Desktop use drives development and release priorities. Mobile support is secondary and may have a different feature set and release schedule.
+- **An organised timeline.** A fixed main video track anchors the edit, with
+  overlays, titles, captions and stickers above it and audio below. Track types
+  have distinct colours; adjustment layers stay within the visual zone. Cuts
+  follow the selection or active track, and optional linkage respects track locks.
+- **Workspace and shortcut presets.** Layouts for vertical video, audio editing,
+  media browsing and detailed inspection. Shortcut profiles for CapCut,
+  Premiere Pro, Final Cut Pro and DaVinci Resolve, with custom bindings.
+- **Integrated content sources.** Browse OpenGameArt, Freesound and the YouTube
+  Audio Library for music and sound effects, and GIPHY for animated stickers.
+  Preview assets and add them to the timeline from the editor.
+- **Personal creative libraries.** Keep favourites, recently used and most-used
+  effects, filters, transitions and stickers across projects.
+- **An expanded transition library.** Browse 123 supported GL Transitions,
+  download them on demand and preview them by hovering over their cards.
+  Installed transitions remain available offline.
 
-Built with a native **Rust** core and a **Slint** interface accelerated by WGSL GPU compute shaders, editing and local AI run on your own machine. Optional online libraries connect to their respective providers.
+Local Whisper captions, text-to-speech, GPU compositing, keyframes and export
+build on the capabilities inherited from Concat. Clovercut selectively adapts
+upstream improvements to its own timeline and project behaviour; the
+[adaptation record](docs/UPSTREAM.md) documents those decisions.
 
-<p align="center">
-  <img src="assets/screenshots/editor-workspace.png" alt="Clovercut desktop editor with layered video, animated stickers and a multitrack timeline" width="1280" />
-</p>
-<p align="center"><em>clovercut multi-track workspace: Media & creative tools (left), 4K GPU monitor (center), contextual inspector (right), and magnetic timeline (bottom).</em></p>
+## Download and install
 
----
+[**Download Clovercut 0.1.8**](https://github.com/tulcoturo/clovercut/releases/tag/v0.1.8)
+— [Release notes](docs/releases/0.1.8.md)
 
-## What sets clovercut apart?
+| Platform | Packages | Architectures |
+|---|---|---|
+| Linux | AppImage | x86_64, ARM64 |
+| Windows | Installer or portable ZIP | x86_64, ARM64 |
+| macOS | DMG | Intel, Apple Silicon |
 
-Clovercut combines a familiar desktop editing workflow with creative libraries and local AI. Its strengths are the combination of tools and the control you retain over your projects:
+Linux installer:
 
-| What matters in your workflow | What Clovercut offers |
-|---|---|
-| Keep recordings on your computer | Local editing and Whisper transcription after model download |
-| Find assets while editing | Searchable audio and GIPHY libraries, previews and timeline import |
-| Reuse a finished look | Clip copy/paste between projects, grouped duplication and adjustment layers |
-| Reach familiar tools quickly | Favourites, recent and most-used assets, hover transition previews |
-| Work on a desktop | Multiple timelines, compact tracks, keyboard shortcuts and an adaptive inspector |
-| Keep control of the editor | AGPL source code and exports without a Clovercut watermark or subscription |
-
-Online assets retain their own licences and availability.
-
-### 1. On-Device Whisper AI Captions
-* **100% Offline Speech-to-Text:** Generates synchronized subtitles using OpenAI Whisper running directly on your CPU/GPU.
-* **Complete Privacy:** Your recordings and voice clips are never uploaded to any remote server.
-* **Full Styling & Export:** Customize fonts (Hanken Grotesk, Roboto, etc.), outline strokes, shadows, background boxes, and export clean `.srt` subtitle files.
-
-<p align="center">
-  <img src="assets/screenshots/text-styling.png" alt="Clovercut text style presets and typography controls" width="1000" />
-</p>
-
-### 2. Integrated GIPHY Animated Stickers
-* **Direct In-App Search:** Search millions of transparent animated stickers and memes powered by GIPHY without switching windows.
-* **Instant Timeline Drop:** Drag any sticker straight onto an overlay video track.
-
-<p align="center">
-  <img src="assets/screenshots/giphy-stickers.png" alt="clovercut GIPHY stickers integration" width="1000" />
-</p>
-
-### 3. Music & Sound Effects Inside the Workspace
-* **Public Domain / CC0 Music:** Integrated OpenGameArt music and sound effects library.
-* **Waveform Previews:** Listen to tracks and view waveforms directly inside the media bin before placing them on audio tracks.
-* **More Sources:** Freesound previews and separate YouTube music/sound-effect sections, with per-track licences and copyable credits. Freesound requires an API key.
-* **Local YouTube sign-in:** Clovercut starts the bundled [Audio API connector](https://github.com/tulcoturo/clovercut-audio-api) on demand and opens a dedicated browser for Studio sign-in. The saved session is reused in the background; no VPS is needed. Chrome, Chromium or Edge must be installed. See [audio setup](docs/AUDIO_LIBRARY.md).
-
-<p align="center">
-  <img src="assets/screenshots/audio-library.png" alt="clovercut YouTube Audio Library with music and sound effects" width="1000" />
-</p>
-
-### 4. CapCut-Style Workflow with Native Rust Speed
-* **Single-Track Playhead Razor (`Ctrl+B`):** Split clips on the active track with a single keypress without slicing through your whole timeline.
-* **Strict Adjustment Layers:** Color grades and visual effects stay strictly bounded above the main video lane.
-* **Personal Libraries:** Star effects, filters, transitions and stickers; browse favourites, most-used and recent items.
-* **Online GL Transitions:** Download 123 supported transitions on demand and preview them by hovering over their cards.
-* **Real-Time GPU Transitions:** WGSL compute shaders powering transitions (Barn Door, Circle Close, Cover, Wipe, Pixelize, Glitch) with 1:1 preview cards.
-* **Clean 4K Export:** Export high-bitrate MP4 (H.264), ProRes, and AV1 up to 60 FPS without watermarks.
-
-<p align="center">
-  <img src="assets/screenshots/export-dialog.png" alt="clovercut centered video and audio export dialog" width="900" />
-</p>
-
----
-
-## New in 0.1.8
-
-Style individual words, link ripple edits across tracks and apply audio effects to the whole soundtrack. Set a canvas colour or export transparency with ProRes 4444/MOV and VP9/WebM. This release also improves preview selection, allows generated clips to extend left, fixes Studio previews across interface languages and simplifies the Text library. Revised default track heights and distinct colours help separate track types at a glance. [Read the full release notes](docs/releases/0.1.8.md).
-
-## Downloads (Version 0.1.8)
-
-The desktop packages are available on [GitHub Releases](https://github.com/tulcoturo/clovercut/releases/tag/v0.1.8):
-
-| Platform | Package | Architecture | Format |
-|---|---|---|---|
-| **Linux** | [Download AppImage](https://github.com/tulcoturo/clovercut/releases/download/v0.1.8/Clovercut-0.1.8-x86_64.AppImage) | x86_64 | Portable `.AppImage` |
-| **Linux (ARM)** | [Download AppImage](https://github.com/tulcoturo/clovercut/releases/download/v0.1.8/Clovercut-0.1.8-aarch64.AppImage) | aarch64 | Portable `.AppImage` |
-| **Windows** | [Download Setup Installer](https://github.com/tulcoturo/clovercut/releases/download/v0.1.8/Clovercut-0.1.8-windows-x86_64-setup.exe) | x86_64 | Guided `.exe` installer |
-| **Windows** | [Download Portable Zip](https://github.com/tulcoturo/clovercut/releases/download/v0.1.8/Clovercut-0.1.8-windows-x86_64-portable.zip) | x86_64 | Standalone `.zip` |
-| **Windows (ARM)** | [Download Setup Installer](https://github.com/tulcoturo/clovercut/releases/download/v0.1.8/Clovercut-0.1.8-windows-aarch64-setup.exe) | aarch64 | Native `.exe` installer |
-| **Windows (ARM)** | [Download Portable Zip](https://github.com/tulcoturo/clovercut/releases/download/v0.1.8/Clovercut-0.1.8-windows-aarch64-portable.zip) | aarch64 | Standalone `.zip` |
-| **macOS (Apple Silicon)** | [Download DMG](https://github.com/tulcoturo/clovercut/releases/download/v0.1.8/Clovercut-0.1.8-macos-arm64.dmg) | arm64 | `.dmg` disk image |
-| **macOS (Intel)** | [Download DMG](https://github.com/tulcoturo/clovercut/releases/download/v0.1.8/Clovercut-0.1.8-macos-x86_64.dmg) | x86_64 | `.dmg` disk image |
-
-Desktop is the primary supported workflow. Version 0.1.8 is desktop-only; mobile builds follow a separate schedule. The previous [Android 0.1.3 APK](https://github.com/tulcoturo/clovercut/releases/download/v0.1.3/Clovercut-0.1.3-android-arm64.apk) remains available.
-
-Native `.deb` and `.rpm` packages are built by CI from the next release on. Until then, Linux installs go through the AppImage, the one-line installer below, or the AUR.
-
-### Install on Linux
-One-line install (picks the native package for your distro, falls back to the AppImage):
-```bash
+```sh
 curl -fsSL https://raw.githubusercontent.com/tulcoturo/clovercut/main/scripts/install.sh | sh
 ```
 
-By distro, once native packages are published for your version (`X.Y.Z`):
-```bash
-# Debian / Ubuntu / Mint / Pop!_OS
-curl -fsSLO https://github.com/tulcoturo/clovercut/releases/download/vX.Y.Z/Clovercut-X.Y.Z-x86_64.deb
-sudo apt install ./Clovercut-X.Y.Z-x86_64.deb
+See [Linux installation](docs/INSTALLATION.md) for package selection, manual
+installation and graphics fallback. Desktop releases are the priority; mobile
+builds follow a separate schedule. Changes on `main` may be newer than the
+published packages.
 
-# Fedora / RHEL
-curl -fsSLO https://github.com/tulcoturo/clovercut/releases/download/vX.Y.Z/Clovercut-X.Y.Z-x86_64.rpm
-sudo dnf install ./Clovercut-X.Y.Z-x86_64.rpm
-# openSUSE: sudo zypper install ./Clovercut-X.Y.Z-x86_64.rpm
+## Local processing, optional online libraries
 
-# Arch / CachyOS / Manjaro / EndeavourOS (prebuilt AppImage repackaged, updated by CI when the AUR maintainer key is configured)
-yay -S clovercut-bin
-# or: paru -S clovercut-bin
-```
+Editing, rendering and AI inference run on your computer. AI models require an
+initial download and can then be used offline. Online content libraries are
+optional and disabled by default.
 
-Packagers: `scripts/build-deb.sh` and `scripts/build-rpm.sh` build both formats from the staged Linux folder with only `dpkg-deb` / `rpmbuild` (`assets/linux/nfpm.yaml` provides an optional equivalent nfpm description). The AUR package lives in `assets/arch/` (`PKGBUILD` + `.SRCINFO`, package name `clovercut-bin`).
+Freesound requires an API key. The YouTube Audio Library uses a bundled local
+connector and a dedicated browser sign-in. Online assets retain their providers'
+licences and attribution requirements. See [content library setup](docs/AUDIO_LIBRARY.md).
 
-AUR automation requires the repository secret `AUR_SSH_KEY` for an account with write access to `clovercut-bin`. It follows successful releases without modifying release tags. Explicit `VERSION` or `PREFIX` installer overrides use the verified AppImage directly.
+## Documentation and development
 
-### Running on Linux
-```bash
-chmod +x Clovercut-0.1.8-x86_64.AppImage
-./Clovercut-0.1.8-x86_64.AppImage
-```
+- [Editing guide](docs/EDITING.md) and [keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md)
+- [Content libraries](docs/AUDIO_LIBRARY.md), [personal lists](docs/LIBRARY_ORGANIZATION.md) and [GL Transitions](docs/GL_TRANSITIONS.md)
+- [Build from source](docs/RELEASING.md#local-development) and [native dependencies](src/README.md#build-and-run)
+- [Automation with MCP](docs/MCP.md)
+- [Contributing](CONTRIBUTING.md) and [translations](TRANSLATING.md)
 
-*(On systems without FUSE installed, launch with `APPIMAGE_EXTRACT_AND_RUN=1`).*
+## Licence and attribution
 
-### Safe Graphics Fallback
-If graphics drivers cause startup issues:
-```bash
-clovercut --software
-```
-This forces software rasterization for the session without altering your system GPU settings.
-
----
-
-## Building from Source
-
-### Prerequisites
-* **Rust 1.93.1** (see [`src/rust-toolchain.toml`](src/rust-toolchain.toml))
-* **FFmpeg 7+** development libraries (`libavcodec`, `libavformat`, `libavfilter`, `libswscale`, `libswresample`)
-* **CMake**, C++ compiler (`gcc`/`clang`), and `libclang`
-* **Linux libraries:** `fontconfig`, `freetype`, `alsa-lib`, `gtk3`, `libxkbcommon`
-* **ONNX Runtime & sherpa-onnx** (for local Whisper and speech models)
-
-### Compiling
-```bash
-# Clone the repository
-git clone https://github.com/tulcoturo/clovercut.git
-cd clovercut
-
-# Build and run with the quick development profile
-cd src
-cargo run --profile quick -p concat --bin clovercut -j1
-```
-
-*(Using `-j1` limits memory consumption on systems with 16 GB RAM).*
-
-### Running Verification Tests
-```bash
-# Check formatting
-cargo fmt --manifest-path src/Cargo.toml --all --check
-
-# Check localization across all 24 languages
-python3 scripts/locales.py --check
-
-# Run engine core tests
-cargo test --manifest-path src/Cargo.toml -p concat-core -p concat-media -p concat-host -j1
-```
-
----
-
-## Documentation
-
-* [Documentation](docs/README.md): Editing, content libraries, automation and release guides.
-* [Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md): List of editing shortcuts and key bindings.
-* [Audio & Content Libraries](docs/AUDIO_LIBRARY.md): Guide to OpenGameArt, YouTube Audio Library, Freesound and GIPHY.
-* [Model Context Protocol (MCP)](docs/MCP.md): Headless automation, CLI tools, and AI agent integration.
-* [Release Notes v0.1.8](docs/releases/0.1.8.md): Complete changelog for version 0.1.8.
-* [Translating clovercut](TRANSLATING.md): Guide to contributing translations across all 25 supported languages.
-
----
-
-## License & Acknowledgements
-
-* clovercut builds upon engine foundations established by **Jareer and Concat contributors**.
-* Distributed under the **GNU Affero General Public License v3.0 or later** ([`LICENSE`](LICENSE)).
-* Third-party licenses and notices are documented in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+Clovercut is an independent project based on Concat by Jareer and the Concat
+contributors, whose engine and contributions remain credited. Distributed under
+[AGPL-3.0-or-later](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md)
+and [trademark information](TRADEMARK.md).

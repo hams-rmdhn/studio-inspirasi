@@ -1,13 +1,14 @@
 # Contributing to Clovercut
 
-Clovercut is an independent Linux video editor based on Concat. Report bugs and
+Clovercut is an independent desktop video editor based on Concat. Report bugs and
 suggest improvements in [Clovercut issues](https://github.com/tulcoturo/clovercut/issues).
-For bugs, include the version, Linux distribution, steps to reproduce, relevant
+For bugs, include the version, operating system, steps to reproduce, relevant
 logs and a small sample project or media file when possible.
 
 ## Development
 
-Follow the dependency and build instructions in [README.md](README.md).
+Follow the [local build instructions](docs/RELEASING.md#local-development) and
+[native dependency setup](src/README.md#build-and-run).
 The Rust workspace is in `src/`; [src/README.md](src/README.md) describes its crates.
 Release packaging targets Linux AppImages, Windows x64/ARM64 and macOS; see [docs/RELEASING.md](docs/RELEASING.md).
 
