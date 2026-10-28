@@ -81,6 +81,18 @@ GGML builds retain their backend feature probes and checksum-pinned dependencies
 
 Every desktop release after 0.1.8 requires these twelve nonempty packages:
 
+Linux builds also install their `.deb` in a clean Debian 12 container and their
+`.rpm` in Fedora 43, on each native architecture. The checks resolve dependencies,
+launch the installed executable and graphical smoke test, reinstall the package,
+then remove it while preserving an application-data marker. This qualifies the
+package lifecycle; it does not simulate a binary/schema upgrade from an older
+release. All package-manager mutations happen inside disposable containers.
+
+To run those lifecycle checks against an already-published stable version without
+rebuilding the editor, dispatch **Linux packaging checks** with `release_tag`
+(for example `v0.1.9`) and the full source SHA in `ref`. Release downloads are
+checksum-verified before installation.
+
 - `Clovercut-<version>-x86_64.AppImage`
 - `Clovercut-<version>-aarch64.AppImage`
 - `Clovercut-<version>-x86_64.deb`

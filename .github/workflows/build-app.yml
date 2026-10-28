@@ -278,6 +278,13 @@ jobs:
         for image in ubuntu:22.04 debian:12; do
           scripts/ci/smoke-linux.sh --container "$image" "stage/Clovercut-${VERSION}-${{ matrix.arch }}.AppImage"
         done
+    - name: Install and launch native Linux packages
+      timeout-minutes: 20
+      env:
+        VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        bash scripts/ci/smoke-native-linux.sh --container debian:12 "stage/Clovercut-${VERSION}-${{ matrix.arch }}.deb" "$VERSION"
+        bash scripts/ci/smoke-native-linux.sh --container fedora:43 "stage/Clovercut-${VERSION}-${{ matrix.arch }}.rpm" "$VERSION"
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: Clovercut-linux-${{ matrix.arch }}

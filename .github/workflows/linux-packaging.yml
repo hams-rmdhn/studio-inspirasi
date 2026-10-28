@@ -20,9 +20,16 @@ name: Linux packaging checks
         description: Exact source ref to validate (empty uses the selected branch)
         type: string
         default: ''
+      release_tag:
+        description: Optional published stable tag for native install smoke checks
+        type: string
+        default: ''
   workflow_call:
     inputs:
       ref:
+        type: string
+        default: ''
+      release_tag:
         type: string
         default: ''
 permissions:
@@ -46,3 +53,46 @@ jobs:
           sudo apt-get install -y -qq rpm makepkg pacman-package-manager
       - name: Installer, package layout, AUR metadata and manifest
         run: python3 -m unittest discover -s scripts -p test_linux_packaging.py -v
+  native:
+    if: inputs.release_tag != ''
+    name: Native install (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - name: Fetch published packages and verify checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 2
+          mkdir native-packages
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D native-packages \
+            -p "Clovercut-${TAG#v}-${ARCH}.deb" -p "Clovercut-${TAG#v}-${ARCH}.rpm" -p SHA256SUMS
+          cd native-packages
+          for kind in deb rpm; do
+            package="Clovercut-${TAG#v}-${ARCH}.${kind}"
+            sum=$(awk -v name="$package" '$2 == name {print $1}' SHA256SUMS)
+            [[ "$sum" =~ ^[0-9a-fA-F]{64}$ ]] || exit 1
+            printf '%s  %s\n' "$sum" "$package" | sha256sum -c -
+          done
+      - name: Native package lifecycle in clean distributions
+        env:
+          TAG: ${{ inputs.release_tag }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          bash scripts/ci/smoke-native-linux.sh --container debian:12 "native-packages/Clovercut-${TAG#v}-${ARCH}.deb" "${TAG#v}"
+          bash scripts/ci/smoke-native-linux.sh --container fedora:43 "native-packages/Clovercut-${TAG#v}-${ARCH}.rpm" "${TAG#v}"
