@@ -7,7 +7,19 @@ media ownership, cancellation, atomic exports and Clovercut's existing UI.
 
 ## Current review
 
-Reviewed through `3d549940` (27 October 2026). The six commits after `9e20c562` change only the upstream README and donation/support presentation; no additional application code is present. The latest comparison adds eleven
+Reviewed through `bfb39ca4` (28 October 2026). The new desktop quick-split button
+is adapted through Clovercut's existing split callback, retaining selected/active
+and typed-main-track targeting, locked-track protection and undo. It uses the
+shared keyboard-operable IconButton and existing translated tooltip, stays inside
+the lane viewport at its edges, and hides during hand-tool panning and touch use.
+The Urdu update `e03ae41d` needs no import: all 32 affected messages are already
+translated, including Clovercut-specific wording.
+
+Validation: full Slint UI code generation passed with two CPU cores and a 4 GiB
+address-space ceiling; the strict locale inventory passed for all 25 languages
+(1,095 messages). This follow-up has not rebuilt the desktop executable.
+
+The six commits after `9e20c562` through `3d549940` change only the upstream README and donation/support presentation; no additional application code is present. The earlier comparison adds eleven
 commits after `94f4255f`; the earlier adaptation batch starts at `2429c0ca`. Adaptations below are newer than the source used by the published
 0.1.6 release and are included in desktop release 0.1.7.
 

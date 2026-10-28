@@ -10,6 +10,11 @@ Click or drag the time ruler or the reserved strip beneath its labels to seek.
 Clicking empty track space or making a selection box changes selection only.
 The default playhead is white; an explicit custom colour remains respected.
 
+A split button follows the playhead just below the ruler on desktop. Click it
+to use the same cut command as the toolbar and keyboard shortcut, respecting
+the current selection, track targeting and locked tracks. Its hover label follows
+the interface language. The button hides while using the hand tool or touch.
+
 The timeline toolbar's plus button adds a timeline. Tabs appear when there is
 more than one timeline; existing rename, close and reorder actions remain.
 Automatic track heights use 80 px for the main video (the manual Medium height),

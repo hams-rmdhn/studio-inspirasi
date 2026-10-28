@@ -7,6 +7,8 @@ import { Fmt, Payload } from "../util.slint";
 import { Glyph, Icon } from "../icons.slint";
 import { ClipData, ClipKind, DropData, TimelineTool, TrackData, TrackKind } from "model.slint";
 import { TrackPaint } from "track-paint.slint";
+import { I18n } from "../i18n.slint";
+import { IconButton } from "../primitives/panel.slint";
 import { ContextMenu, MenuItemData } from "../primitives/context-menu.slint";
 
 // The lanes: the ruler, the banded track stack, the clips on it, the playhead
@@ -1181,6 +1183,8 @@ export component Lanes inherits Rectangle {
     callback hover-ended();
     /// A press on an empty stretch of lane, before the band it may become.
     callback floor-pressed();
+    /// Cut at the playhead through the same command as the tray and menu.
+    callback split-requested();
 
     /// Where the pointer is, for the preview axis, and whether it is here
     /// at all. Every surface reports through `hover-at` - the floor, the
@@ -2082,6 +2086,27 @@ export component Lanes inherits Rectangle {
                 }
             }
         }
+        // Adapted from Concat bfb39ca4: keep the cut beside the playhead.
+        // Use our shared accessible button and translated tooltip. Hide it
+        // while panning so the hand tool keeps ownership of every drag.
+        if !root.finger && !root.pan-mode
+            && root.at(root.playhead) >= 0px
+            && root.at(root.playhead) <= root.width: IconButton {
+            x: Math.max(0px, Math.min(root.width - self.width,
+                root.at(root.playhead) - self.width / 2));
+            y: root.ruler-height + 6px;
+            width: 26px;
+            height: 26px;
+            background: Theme.raised;
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: Theme.line-strong;
+            glyph: Glyph.split;
+            icon-size: 12px;
+            label: I18n.t("studio.splitAtPlayhead");
+            clicked => { root.split-requested(); }
+        }
+
         // Hand tool: left-drag pans time. Sits at the top of the wheel's
         // children so it takes the drag before any clip or the band does.
         if root.pan-mode: pan := TouchArea {
