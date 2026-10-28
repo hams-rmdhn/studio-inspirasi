@@ -1,4 +1,5 @@
 name: CI
+run-name: ${{ inputs.connector_only && 'Audio connector checks' || 'Full CI' }} · ${{ inputs.ref || github.ref_name }}
 
 # Run the full engine checks manually or when preparing a release.
 # Ordinary pushes and pull requests do not start a compilation.
@@ -15,6 +16,10 @@ on:
         description: Exact source ref to validate (empty uses the selected branch)
         type: string
         default: ""
+      connector_only:
+        description: Check only the bundled audio connector (no Rust compilation)
+        type: boolean
+        default: false
   # release.yml runs this before it builds anything: a tag on a red tree
   # is not a release. It names the tag, because a release started by hand
   # runs on main, and main is not what it builds.
@@ -43,11 +48,17 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-      - name: Studio preview language regressions
+      - name: Catalogue, session and Studio preview regressions
         # Direct execution uses node:test and propagates assertion failures.
-        # No browser, credentials or network service is needed.
-        run: node src/crates/concat-host/audio-service/test/bridge.test.mjs
+        # Uses fixtures and loopback HTTP; no browser, credentials or external service.
+        run: |
+          for file in src/crates/concat-host/audio-service/test/*.test.mjs; do
+            node "$file"
+          done
   engine:
+    # This selector is dispatch-only: reusable release calls cannot pass it.
+    # They always run the engine as well as the connector.
+    if: inputs.connector_only != true
     name: Engine tests and lints
     runs-on: ubuntu-24.04
     # A cold native + Slint test build needs more than 25 minutes on a hosted runner.

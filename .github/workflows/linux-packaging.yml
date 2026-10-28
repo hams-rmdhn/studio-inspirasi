@@ -8,6 +8,7 @@ name: Linux packaging checks
       - 'scripts/bump-aur.sh'
       - 'scripts/models.py'
       - 'scripts/test_linux_packaging.py'
+      - 'scripts/ci/smoke-native-linux.sh'
       - 'assets/arch/**'
       - 'assets/linux/**'
       - '.github/workflows/*packaging*'
@@ -46,6 +47,8 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
+      - name: Native lifecycle harness syntax
+        run: bash -n scripts/ci/smoke-native-linux.sh
       - name: Packaging tools (no editor compilation)
         run: |
           sudo apt-get update -qq

@@ -22,6 +22,9 @@ Implemented locally:
   exact source SHA; the connector has a Node 22 CI job; reports survive success.
 - P0: AUR regression fixtures follow the package version instead of assuming
   0.1.8; updating package metadata no longer breaks an unrelated stale-file test.
+- P1: the existing companion API/session fixtures also exercise the bundled
+  connector: 20 cases cover licence/credit normalisation, pagination, expired
+  URLs, offline browsing, request coalescing, explicit sign-in and reconnect.
 - Test prerequisites and execution policies for all 28 ignored baseline cases
   are documented in [test suites and qualification](docs/TESTING.md).
 - P1: common icon buttons expose their role, label, enabled state and default
@@ -32,18 +35,22 @@ Implemented locally:
 - P2: screenshot walkthrough is opt-in development tooling; fixture/capture
   failures no longer silently continue. State-driven steps remain future work.
 - Distribution: 0.1.9 is published with all twelve packages. Website update is
-  deployed as `03e59cff`; README/install/AUR metadata updates are prepared locally.
+  deployed as `03e59cff`; README/install/AUR metadata updates are on the polish branch.
+- Native `.deb` and `.rpm` installation, dependency resolution, graphical startup,
+  reinstallation, removal and user-data preservation passed on x86_64 and ARM64
+  in [isolated CI](https://github.com/tulcoturo/clovercut/actions/runs/40667742945).
+  The harness also runs in future Linux builds before artifact upload.
 
-Validation so far: 19 package regressions, 9 locale-tool regressions, 6 connector
+Validation so far: 19 package regressions, 9 locale-tool regressions, 20 connector
 cases, 4 Enhance-planning cases and 5 export reliability cases passed. Strict
 locale inventory, rustfmt, actionlint and Slint generation passed.
 
 Limits: full desktop Rust checking exceeded the deliberate 6 GiB address-space
 limit (rustc allocation failure/SIGABRT), so it is not recorded as passing. Further
-heavy compilation should run in an isolated CI runner or with the documented
-disk-swap/cgroup protections. Native container installation checks could not run:
-Docker access is denied and passwordless sudo is unavailable. No packages were
-installed on the host. Interactive graphical/audio qualification is still pending.
+heavy compilation runs in [isolated CI](https://github.com/tulcoturo/clovercut/actions/runs/40666635410).
+Local Docker access is denied and passwordless sudo is unavailable; remote native
+container checks passed instead. No packages were installed on the host.
+Interactive graphical/audio and screen-reader qualification are still pending.
 
 The remaining sections are planned work, not a completed-programme claim. Keep
 the existing gRPC second pass for now: its measured cost is only 5.644 seconds.

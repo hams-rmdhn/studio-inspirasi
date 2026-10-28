@@ -79,8 +79,6 @@ architecture/CPU compatibility. macOS jobs check the app bundle and native start
 FFmpeg packages must include the required Rubber Band filters. Windows dynamic
 GGML builds retain their backend feature probes and checksum-pinned dependencies.
 
-Every desktop release after 0.1.8 requires these twelve nonempty packages:
-
 Linux builds also install their `.deb` in a clean Debian 12 container and their
 `.rpm` in Fedora 43, on each native architecture. The checks resolve dependencies,
 launch the installed executable and graphical smoke test, reinstall the package,
@@ -92,6 +90,8 @@ To run those lifecycle checks against an already-published stable version withou
 rebuilding the editor, dispatch **Linux packaging checks** with `release_tag`
 (for example `v0.1.9`) and the full source SHA in `ref`. Release downloads are
 checksum-verified before installation.
+
+Every desktop release after 0.1.8 requires these twelve nonempty packages:
 
 - `Clovercut-<version>-x86_64.AppImage`
 - `Clovercut-<version>-aarch64.AppImage`

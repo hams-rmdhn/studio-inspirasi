@@ -15,13 +15,27 @@ abbreviated SHA as a commit.
 | Locale rules | `python3 -m unittest discover -s scripts -p test_locales.py` | Python |
 | Translations | `python3 scripts/locales.py --check --strict` | Python |
 | Models | `python3 scripts/models.py --check` | Python; no model inference |
-| Connector | `node src/crates/concat-host/audio-service/test/bridge.test.mjs` | Node 22+; no browser, account or network |
+| Connector | `for file in src/crates/concat-host/audio-service/test/*.test.mjs; do node "$file" || exit; done` | Node 22+; loopback HTTP fixtures, no browser/account/external service |
 | Linux packages | `python3 -m unittest discover -s scripts -p test_linux_packaging.py -v` | Linux, dpkg-deb, RPM tools, makepkg/pacman; does not install on the host |
 
-The Node suite must report its individual language cases. The Linux suite checks
+The Node suites report 20 cases at this increment: 11 catalogue/API, 6 preview
+language cases and 3 session-recovery cases. The API/session fixtures are shared
+with the companion Audio API and now also test the copy shipped with the editor.
+The Linux suite checks
 real package payloads and mocked installer failure paths; it does not qualify
 installation on every distribution. Release workflows require checks against
 the selected source commit, not a previous successful branch run.
+
+For connector-only changes, the manual **CI** dispatch offers `connector_only`.
+That run is labelled **Audio connector checks** and skips Rust compilation.
+Reusable release calls do not expose this selector and always run the engine.
+
+Linux builds separately run `scripts/ci/smoke-native-linux.sh` in clean Debian 12
+and Fedora 43 containers: install, dependency resolution, version, graphical
+startup, reinstall, remove and user-data preservation. These checks require Docker
+and are never run against the developer's host package manager. The optional
+`release_tag` input of **Linux packaging checks** qualifies an existing published
+version without rebuilding the application; see [release validation](RELEASING.md#package-validation).
 
 The small pure Enhance planning module can also be checked without the generated
 UI or native libraries, from the repository root:
