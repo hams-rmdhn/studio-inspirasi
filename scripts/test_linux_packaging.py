@@ -29,6 +29,9 @@ elif name=='curl':
   else:
    kinds=['AppImage']+(['deb','rpm'] if os.environ.get('NATIVE')=='1' else [])
    out=''.join(hashlib.sha256(data).hexdigest()+'  Clovercut-'+ver+'-'+arch+'.'+k+'\n' for k in kinds).encode()
+ elif url.startswith('https://aur.archlinux.org/rpc/'):
+  if os.environ.get('AUR_FAIL')=='1':sys.exit(22)
+  out=json.dumps({'results':[{'Version':os.environ.get('AUR_RELEASE',ver+'-1')}]}).encode()
  else:out=b'corrupt\n' if os.environ.get('CORRUPT')=='1' else data
  if '-o' in args:Path(args[args.index('-o')+1]).write_bytes(out)
  else:sys.stdout.buffer.write(out)
@@ -53,7 +56,7 @@ class Installer(unittest.TestCase):
         self.script.write_text((ROOT / 'scripts/install.sh').read_text().replace('/etc/os-release', str(self.os_release)))
         self.env = {**os.environ, 'PATH': str(self.mock)+os.pathsep+os.environ['PATH'],
                     'HOME': str(self.r / 'home'), 'CALLS': str(self.r / 'calls')}
-        for key in ['VERSION', 'PREFIX', 'RELEASE', 'ARCH', 'NATIVE', 'CORRUPT', 'EMPTY_SUMS', 'NETWORK_FAIL']:
+        for key in ['VERSION', 'PREFIX', 'RELEASE', 'ARCH', 'NATIVE', 'CORRUPT', 'EMPTY_SUMS', 'NETWORK_FAIL', 'AUR_RELEASE', 'AUR_FAIL']:
             self.env.pop(key, None)
 
     def run_install(self, distro='debian', **env):
@@ -99,6 +102,18 @@ class Installer(unittest.TestCase):
         result = self.run_install('arch')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(['yay', '-S', 'clovercut-bin'], self.calls())
+
+    def test_arch_stale_aur_uses_the_current_verified_appimage(self):
+        result = self.run_install('arch', RELEASE='0.1.9', AUR_RELEASE='0.1.8-1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(any(c[0] in ['yay', 'paru'] for c in self.calls()))
+        self.assertEqual((self.r / 'home/.local/bin/clovercut').read_bytes(), b'checked app payload\n')
+
+    def test_arch_unavailable_aur_does_not_block_portable_install(self):
+        result = self.run_install('arch', RELEASE='0.1.9', AUR_FAIL='1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(any(c[0] in ['yay', 'paru'] for c in self.calls()))
+        self.assertEqual((self.r / 'home/.local/bin/clovercut').read_bytes(), b'checked app payload\n')
 
     def test_prefix_requests_portable_install_even_with_native_asset(self):
         result = self.run_install(NATIVE='1', PREFIX=str(self.r / 'custom'))

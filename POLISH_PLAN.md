@@ -22,6 +22,9 @@ Implemented locally:
   exact source SHA; the connector has a Node 22 CI job; reports survive success.
 - P0: AUR regression fixtures follow the package version instead of assuming
   0.1.8; updating package metadata no longer breaks an unrelated stale-file test.
+- Installation: Arch helpers are used only when the AUR reports the selected
+  release; stale/unavailable AUR metadata falls back to the verified AppImage.
+  Two regressions cover the actual 0.1.9-release/0.1.8-AUR mismatch and API failure.
 - P1: the existing companion API/session fixtures also exercise the bundled
   connector: 20 cases cover licence/credit normalisation, pagination, expired
   URLs, offline browsing, request coalescing, explicit sign-in and reconnect.
@@ -41,7 +44,7 @@ Implemented locally:
   in [isolated CI](https://github.com/tulcoturo/clovercut/actions/runs/40667742945).
   The harness also runs in future Linux builds before artifact upload.
 
-Validation so far: 19 package regressions, 9 locale-tool regressions, 20 connector
+Validation so far: 21 package regressions, 9 locale-tool regressions, 20 connector
 cases, 4 Enhance-planning cases and 5 export reliability cases passed. Strict
 locale inventory, rustfmt, actionlint and Slint generation passed.
 

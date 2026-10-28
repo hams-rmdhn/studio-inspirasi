@@ -8,6 +8,10 @@ One-line install (picks the native package for your distro, falls back to the Ap
 curl -fsSL https://raw.githubusercontent.com/tulcoturo/clovercut/main/scripts/install.sh | sh
 ```
 
+On Arch-based distributions, an AUR helper is used only if the AUR reports the
+selected release version. If the AUR is behind or unavailable, the installer uses
+the checksum-verified AppImage instead.
+
 Manual installation (x86_64 examples; use `aarch64` for ARM64):
 
 ```bash

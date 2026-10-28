@@ -66,7 +66,16 @@ case "$distro" in
  *arch*|*cachyos*|*manjaro*|*endeavouros*)
   if [ "$(id -u)" -ne 0 ]; then
    for helper in yay paru; do
-    if have "$helper"; then "$helper" -S clovercut-bin; echo 'AUR installation complete. Run clovercut.'; exit 0; fi
+    if have "$helper"; then
+     # A release may precede AUR publication. Never silently install an older one.
+     aur_version=$(curl -fsSL --connect-timeout 10 --max-time 20 \
+       'https://aur.archlinux.org/rpc/v5/info?arg%5B%5D=clovercut-bin' 2>/dev/null \
+       | sed -n 's/.*"Version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+     case "$aur_version" in
+      "$ver"-*) "$helper" -S clovercut-bin; echo 'AUR installation complete. Run clovercut.'; exit 0;;
+      *) echo "AUR version $ver is not confirmed; using the verified AppImage."; break;;
+     esac
+    fi
    done
   fi;;
  *debian*|*ubuntu*|*mint*|*pop*)
