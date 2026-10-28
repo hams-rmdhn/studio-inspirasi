@@ -128,7 +128,9 @@ the existing gRPC second pass for now: its measured cost is only 5.644 seconds.
   legacy manifests, ordered/concurrent saves and durability failures without
   native media/UI compilation.
 - Local validation: all 16 storage cases, focused Clippy, formatting and workflow
-  lint passed. This narrow check does not replace full host/release qualification.
+  lint passed. The [expanded headless CI](https://github.com/tulcoturo/clovercut/actions/runs/40699236574)
+  also passed on `ab827c3c`. This narrow check does not replace full host/release
+  qualification.
 
 ## Priorities
 
