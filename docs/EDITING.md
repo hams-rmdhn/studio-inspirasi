@@ -139,3 +139,11 @@ source clips remain audible untreated; once ready, that mixed interval replaces
 them, avoiding doubled audio. Editing the treatment or changing projects cancels
 obsolete work. Exports use the same mixer and retain cancellation and atomic
 output publication.
+
+## Project cache
+
+Clear project cache removes regenerable thumbnails, posters and hash-named
+waveform entries. Enhanced copies, reversed clips, freeze frames and unknown
+files remain, including media needed by unsaved edits or undo. Audio/proxy
+working directories also remain. The cache folder therefore travels with the
+project: it contains generated source media as well as disposable previews.

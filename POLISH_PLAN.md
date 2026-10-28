@@ -132,6 +132,23 @@ the existing gRPC second pass for now: its measured cost is only 5.644 seconds.
   also passed on `ab827c3c`. This narrow check does not replace full host/release
   qualification.
 
+## Execution record — fifth increment
+
+- Fixed a data-preservation bug: clearing the entire project cache also deleted
+  generated Enhance/Reverse media and freeze frames that clips can reference.
+  Cleanup now removes only reserved artwork, the poster and hash-named waveform
+  files, preserving generated media, unknown content and audio/proxy directories.
+  It does not infer ownership from the last saved document, which misses unsaved
+  edits and undo history.
+- Cleanup requires a project manifest and refuses a symlinked cache root. Directory
+  counting no longer follows links; removing the reserved artwork tree leaves
+  external link targets untouched. No recursive sweep of unknown directories.
+- Two regressions failed before the fix: generated media was removed and a linked
+  cache root was accepted. Three cases now cover preservation, symlink boundaries
+  and refusing non-project folders. All 19 storage cases, focused Clippy and
+  formatting passed locally. This is storage qualification, not an interactive
+  graphical walkthrough.
+
 ## Priorities
 
 - **P0:** validation that can incorrectly report success, or omit required release checks.

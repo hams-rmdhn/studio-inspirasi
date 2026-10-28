@@ -725,34 +725,80 @@ fn is_device_name(name: &str) -> bool {
     matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL") || port("COM") || port("LPT")
 }
 
-/// Removes all cached artwork and waveforms from a project folder.
+/// Removes regenerable artwork and waveform entries from a project folder.
 ///
-/// The cache is entirely regenerable, so the whole folder goes, subfolders
-/// (`art/`, peaks and all) included. `remove_file` alone would skip them:
-/// it refuses directories.
+/// The cache also contains clip-owned Enhance/Reverse copies and freeze frames,
+/// including files needed by unsaved edits and undo. Never sweep the whole cache
+/// or infer ownership only from the last saved manifest. Keep unknown entries,
+/// audio/proxy working directories and linked cache roots untouched.
 pub fn clear_cache(path: &str) -> Result<usize, String> {
-    let cache_dir = Path::new(path).join("cache");
-    if !cache_dir.exists() {
-        return Ok(0);
+    let root = Path::new(path);
+    if !is_project(root) {
+        return Err(format!("{path} is not a project folder"));
     }
-    let count = count_files(&cache_dir);
-    std::fs::remove_dir_all(&cache_dir)
-        .map_err(|error| format!("cannot remove {}: {error}", cache_dir.display()))?;
+    let cache_dir = root.join("cache");
+    let metadata = match std::fs::symlink_metadata(&cache_dir) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(format!("cannot inspect {}: {error}", cache_dir.display())),
+    };
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err(format!(
+            "refusing non-directory or linked cache {}",
+            cache_dir.display()
+        ));
+    }
+    let entries = std::fs::read_dir(&cache_dir)
+        .map_err(|error| format!("cannot read {}: {error}", cache_dir.display()))?;
+    let mut count = 0;
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("cannot read cache entry: {error}"))?;
+        let path = entry.path();
+        let kind = entry
+            .file_type()
+            .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue };
+        let peaks = name
+            .strip_suffix(".peaks")
+            .and_then(|stem| stem.split('-').next())
+            .is_some_and(|key| key.len() == 16 && key.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        let (removed, result) = if kind.is_dir() && name == "art" {
+            (count_files(&path), std::fs::remove_dir_all(&path))
+        } else if kind.is_file() && (name == "poster.jpg" || peaks) {
+            (1, std::fs::remove_file(&path))
+        } else {
+            continue;
+        };
+        match result {
+            Ok(()) => count += removed,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("cannot remove {}: {error}", path.display())),
+        }
+    }
     Ok(count)
 }
 
-/// Recursively counts the files under a directory, for the clear-cache toast.
+/// Best-effort count for the toast; directory links are entries, never traversed.
 fn count_files(dir: &Path) -> usize {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return 0;
-    };
-    entries
-        .filter_map(|entry| entry.ok())
-        .map(|entry| {
-            let path = entry.path();
-            if path.is_dir() { count_files(&path) } else { 1 }
-        })
-        .sum()
+    let mut stack = vec![dir.to_owned()];
+    let mut count = 0;
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if kind.is_dir() {
+                stack.push(entry.path());
+            } else {
+                count += 1;
+            }
+        }
+    }
+    count
 }
 #[cfg(test)]
 mod tests {
@@ -772,6 +818,107 @@ mod tests {
         let read: Vec<ProjectInfo> = serde_json::from_str(&list).expect("reads");
         assert_eq!(read[0].canvas, [0, 177, 64, 255]);
         assert_eq!(read[1].canvas, [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn cache_cleanup_preserves_generated_media_and_unknown_files() {
+        let scratch = tempfile::tempdir().unwrap();
+        let project = create(scratch.path().to_str().unwrap(), "Cache", 64, 36, 24, 1).unwrap();
+        let cache = Path::new(&project.path).join("cache");
+        // These assets are deliberately absent from the saved manifest:
+        // unsaved edits and undo can still own them.
+        let retained = [
+            "enhance-0123456789abcdef-2x.mp4",
+            "enhance-0123456789abcdef-2x.png",
+            "reverse-0123456789abcdef-0-2000.mp4",
+            "freeze-c1-1000.jpg",
+            "audio/decoded.pcm",
+            "proxy/preview.mp4",
+            "custom/owned.jpg",
+            "notes.txt",
+            "notes.peaks",
+        ];
+        let disposable = [
+            "art/source.thumb.jpg",
+            "art/nested/source.strip.jpg",
+            "0123456789abcdef-b1000-origin-v2.peaks",
+            "poster.jpg",
+        ];
+        for name in retained.iter().chain(disposable.iter()) {
+            let file = cache.join(name);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, name.as_bytes()).unwrap();
+        }
+        let count = clear_cache(&project.path).unwrap();
+        for name in retained {
+            assert_eq!(
+                std::fs::read(cache.join(name)).unwrap_or_default(),
+                name.as_bytes(),
+                "cache cleanup must preserve project media and unknown content: {name}"
+            );
+        }
+        assert_eq!(count, disposable.len());
+        for name in disposable {
+            assert!(!cache.join(name).exists());
+        }
+        assert!(is_project(Path::new(&project.path)));
+        assert_eq!(clear_cache(&project.path).unwrap(), 0);
+    }
+
+    #[test]
+    fn cache_cleanup_refuses_folders_without_a_project_manifest() {
+        let scratch = tempfile::tempdir().unwrap();
+        let cache = scratch.path().join("cache");
+        std::fs::create_dir(&cache).unwrap();
+        std::fs::write(cache.join("poster.jpg"), b"not our cache").unwrap();
+        assert!(clear_cache(scratch.path().to_str().unwrap()).is_err());
+        assert_eq!(
+            std::fs::read(cache.join("poster.jpg")).unwrap(),
+            b"not our cache"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_cleanup_does_not_follow_directory_symlinks() {
+        use std::os::unix::fs::symlink;
+        let scratch = tempfile::tempdir().unwrap();
+        let project = create(scratch.path().to_str().unwrap(), "Links", 64, 36, 24, 1).unwrap();
+        let cache = Path::new(&project.path).join("cache");
+        let outside = scratch.path().join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        std::fs::write(outside.join("poster.jpg"), b"external file").unwrap();
+        symlink(&outside, &cache).unwrap();
+        assert!(
+            clear_cache(&project.path).is_err(),
+            "refuse a linked cache root"
+        );
+        assert_eq!(
+            std::fs::read(outside.join("poster.jpg")).unwrap(),
+            b"external file"
+        );
+        std::fs::remove_file(&cache).unwrap();
+        std::fs::create_dir(&cache).unwrap();
+        symlink(&outside, cache.join("art")).unwrap();
+        assert_eq!(clear_cache(&project.path).unwrap(), 0);
+        assert!(
+            cache
+                .join("art")
+                .symlink_metadata()
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        std::fs::remove_file(cache.join("art")).unwrap();
+        std::fs::create_dir(cache.join("art")).unwrap();
+        std::fs::write(cache.join("art/thumbnail.jpg"), b"regenerable").unwrap();
+        symlink(&outside, cache.join("art/external")).unwrap();
+        assert_eq!(clear_cache(&project.path).unwrap(), 2);
+        assert!(!cache.join("art").exists());
+        assert_eq!(
+            std::fs::read(outside.join("poster.jpg")).unwrap(),
+            b"external file"
+        );
     }
 
     #[cfg(target_os = "linux")]
