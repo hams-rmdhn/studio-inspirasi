@@ -146,7 +146,8 @@ the existing gRPC second pass for now: its measured cost is only 5.644 seconds.
 - Two regressions failed before the fix: generated media was removed and a linked
   cache root was accepted. Three cases now cover preservation, symlink boundaries
   and refusing non-project folders. All 19 storage cases, focused Clippy and
-  formatting passed locally. This is storage qualification, not an interactive
+  formatting passed locally. The [headless CI](https://github.com/tulcoturo/clovercut/actions/runs/40701166898)
+  also passed on `3d58d24a`. This is storage qualification, not an interactive
   graphical walkthrough.
 
 ## Priorities

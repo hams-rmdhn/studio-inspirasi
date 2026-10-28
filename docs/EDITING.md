@@ -142,8 +142,8 @@ output publication.
 
 ## Project cache
 
-Clear project cache removes regenerable thumbnails, posters and hash-named
-waveform entries. Enhanced copies, reversed clips, freeze frames and unknown
-files remain, including media needed by unsaved edits or undo. Audio/proxy
+Clear project cache removes the reserved thumbnail artwork directory, the project
+poster and hash-named waveform entries. Other cache entries remain, including
+enhanced copies, reversed clips and freeze frames needed by unsaved edits or undo. Audio/proxy
 working directories also remain. The cache folder therefore travels with the
 project: it contains generated source media as well as disposable previews.
