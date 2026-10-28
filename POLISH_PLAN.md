@@ -11,7 +11,7 @@ existing workflows before adding features.
 
 ## Execution record — first increment
 
-Implemented locally:
+Implemented and validated:
 
 - P0: seek stress test requires all 50 seeks to publish the target picture and
   reach the playback position before the deadline; timeouts cannot count as success.
@@ -38,19 +38,27 @@ Implemented locally:
 - P2: screenshot walkthrough is opt-in development tooling; fixture/capture
   failures no longer silently continue. State-driven steps remain future work.
 - Distribution: 0.1.9 is published with all twelve packages. Website update is
-  deployed as `03e59cff`; README/install/AUR metadata updates are on the polish branch.
+  deployed as `03e59cff`; README/install/AUR metadata are aligned with the published release.
 - Native `.deb` and `.rpm` installation, dependency resolution, graphical startup,
   reinstallation, removal and user-data preservation passed on x86_64 and ARM64
   in [isolated CI](https://github.com/tulcoturo/clovercut/actions/runs/40667742945).
   The harness also runs in future Linux builds before artifact upload.
 
-Validation so far: 21 package regressions, 9 locale-tool regressions, 20 connector
+Validation: the [full Rust CI](https://github.com/tulcoturo/clovercut/actions/runs/40666635410)
+passed Clippy, documentation examples, 1300 tests (27 skipped) and 30 gRPC tests.
+The [Linux candidate build](https://github.com/tulcoturo/clovercut/actions/runs/40671290101)
+passed compilation, AppImage checks and native package installation/startup checks.
+The [latest packaging matrix](https://github.com/tulcoturo/clovercut/actions/runs/40674173356)
+passed on x86_64 and ARM64. The production Rust/UI source is unchanged since the
+full CI commit `c23a64da`; later changes affect connector tests, CI, packaging and docs.
+
+Also passed: 21 package regressions, 9 locale-tool regressions, 20 connector
 cases, 4 Enhance-planning cases and 5 export reliability cases passed. Strict
 locale inventory, rustfmt, actionlint and Slint generation passed.
 
 Limits: full desktop Rust checking exceeded the deliberate 6 GiB address-space
-limit (rustc allocation failure/SIGABRT), so it is not recorded as passing. Further
-heavy compilation runs in [isolated CI](https://github.com/tulcoturo/clovercut/actions/runs/40666635410).
+limit (rustc allocation failure/SIGABRT), so it is not recorded as passing. The corresponding
+full desktop checks subsequently passed in isolated CI, as recorded above.
 Local Docker access is denied and passwordless sudo is unavailable; remote native
 container checks passed instead. No packages were installed on the host.
 Interactive graphical/audio and screen-reader qualification are still pending.
