@@ -95,7 +95,7 @@ pub fn shown<'a>(
 /// The official site, which the guides and the developer docs are pages of.
 const SITE: &str = REPOSITORY;
 /// The repository: the code, the issues, the releases.
-pub const REPOSITORY: &str = "https://github.com/tulcoturo/clovercut";
+pub const REPOSITORY: &str = "https://github.com/hams-rmdhn/studio-inspirasi";
 
 /// Where each of the launch screen's links goes, by the name the screen
 /// sends. One table, so a moved page is one line here. Every address is a
@@ -199,14 +199,14 @@ fn default_location() -> String {
 /// the folder the file manager shows for the app. An iPhone's live in the
 /// app's Documents, the one folder of its sandbox the Files app can show:
 /// `~/Desktop` there is a folder the app is not allowed to make, and every
-/// new project failed with EPERM. https://github.com/tulcoturo/clovercut/issues/299
+/// new project failed with EPERM. https://github.com/hams-rmdhn/studio-inspirasi/issues/299
 fn location_on(os: &str, desktop: Option<PathBuf>, home: impl Fn(&str) -> String) -> String {
     match os {
-        "android" => home("Clovercut"),
-        "ios" => home("Documents/Clovercut"),
+        "android" => home("Studio Inspirasi"),
+        "ios" => home("Documents/Studio Inspirasi"),
         _ => desktop
-            .map(|desktop| desktop.join("Clovercut").to_string_lossy().into_owned())
-            .unwrap_or_else(|| home("Desktop/Clovercut")),
+            .map(|desktop| desktop.join("Studio Inspirasi").to_string_lossy().into_owned())
+            .unwrap_or_else(|| home("Desktop/Studio Inspirasi")),
     }
 }
 
@@ -233,7 +233,7 @@ fn is_untitled(name: &str) -> bool {
 /// The first of "Untitled project", "Untitled project 2", ... whose folder
 /// is not `taken`. A second new project in the same place used to be
 /// refused as "already exists" until it was renamed by hand.
-/// https://github.com/tulcoturo/clovercut/issues/151
+/// https://github.com/hams-rmdhn/studio-inspirasi/issues/151
 fn first_free_untitled(taken: impl Fn(&str) -> bool) -> String {
     let untitled = untitled();
     std::iter::once(untitled.clone())
@@ -572,15 +572,15 @@ mod tests {
         let desktop = || Some(PathBuf::from("/desk"));
         assert_eq!(
             location_on("ios", desktop(), home),
-            "/home/Documents/Clovercut"
+            "/home/Documents/Studio Inspirasi"
         );
-        assert_eq!(location_on("ios", None, home), "/home/Documents/Clovercut");
-        assert_eq!(location_on("android", None, home), "/home/Clovercut");
+        assert_eq!(location_on("ios", None, home), "/home/Documents/Studio Inspirasi");
+        assert_eq!(location_on("android", None, home), "/home/Studio Inspirasi");
         assert_eq!(
             PathBuf::from(location_on("macos", desktop(), home)),
-            Path::new("/desk").join("Clovercut")
+            Path::new("/desk").join("Studio Inspirasi")
         );
-        assert_eq!(location_on("linux", None, home), "/home/Desktop/Clovercut");
+        assert_eq!(location_on("linux", None, home), "/home/Desktop/Studio Inspirasi");
     }
 
     /// The next untitled name skips every folder already there, and starts

@@ -82,7 +82,7 @@ fn request(url: &str) -> Result<String, String> {
         &|request| {
             request.set(
                 "User-Agent",
-                concat!("Clovercut/", env!("CARGO_PKG_VERSION")),
+                concat!("Studio-Inspirasi/", env!("CARGO_PKG_VERSION")),
             )
         },
     )

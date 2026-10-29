@@ -22,7 +22,7 @@
 use std::path::{Path, PathBuf};
 
 /// The app identifier, which is also the folder name everywhere.
-pub const IDENTIFIER: &str = "io.github.tulcoturo.clovercut";
+pub const IDENTIFIER: &str = "io.github.hams-rmdhn.studio-inspirasi";
 
 /// The app's own directories on this machine.
 #[derive(Clone, Debug)]
@@ -43,7 +43,9 @@ impl AppDirs {
         }
         let convention = convention(std::env::consts::OS);
         if convention == Convention::Apple {
-            Ok(apple(&home()?, cfg!(target_os = "ios")))
+            let home = home()?;
+            migrate_legacy(&home);
+            Ok(apple(&home, cfg!(target_os = "ios")))
         } else if convention == Convention::Windows {
             let config = std::env::var_os("APPDATA")
                 .map(PathBuf::from)
@@ -132,6 +134,25 @@ fn move_data(from: &Path, to: &Path) {
             let _ = std::fs::create_dir_all(to);
             let _ = std::fs::rename(&old, &new);
         }
+    }
+}
+
+/// The identifier an earlier release of this app used. Its data folder
+/// moves across once, below, rather than stranding gigabytes of models.
+const LEGACY_IDENTIFIER: &str = "io.github.tulcoturo.clovercut";
+
+/// Moves the whole data home from the legacy identifier to this app's,
+/// once: a folder already at the new name is left alone, and nothing
+/// happens on machines that never ran the earlier app. A rename, so
+/// gigabytes of downloaded models move instantly on the same volume.
+fn migrate_legacy(home: &Path) {
+    let support = home.join("Library").join("Application Support");
+    let (old, new) = (
+        support.join(LEGACY_IDENTIFIER),
+        support.join(IDENTIFIER),
+    );
+    if old.is_dir() && !new.exists() {
+        let _ = std::fs::rename(&old, &new);
     }
 }
 

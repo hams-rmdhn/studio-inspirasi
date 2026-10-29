@@ -1,0 +1,10 @@
+{
+  "name": "Studio Inspirasi",
+  "slug": "studio-inspirasi",
+  "identifier": "io.github.hams-rmdhn.studio-inspirasi",
+  "repository": "hams-rmdhn/studio-inspirasi",
+  "accents": {
+    "primary": "#5ac4cd",
+    "secondary": "#2cb1bc"
+  }
+}

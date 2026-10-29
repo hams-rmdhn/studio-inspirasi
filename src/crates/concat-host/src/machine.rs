@@ -13,7 +13,7 @@
 /// built it from - "local" for a build from a working tree.
 pub fn build() -> String {
     format!(
-        "Clovercut {} · {}-{} · commit {}",
+        "Studio Inspirasi {} · {}-{} · commit {}",
         env!("CARGO_PKG_VERSION"),
         std::env::consts::OS,
         std::env::consts::ARCH,
@@ -326,7 +326,7 @@ mod tests {
 
     #[test]
     fn the_lines_say_something() {
-        assert!(build().starts_with(&format!("Clovercut {}", env!("CARGO_PKG_VERSION"))));
+        assert!(build().starts_with(&format!("Studio Inspirasi {}", env!("CARGO_PKG_VERSION"))));
         assert!(!system().is_empty());
         assert!(cpu().contains("threads"));
     }

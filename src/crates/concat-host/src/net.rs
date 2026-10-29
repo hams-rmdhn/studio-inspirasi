@@ -6,7 +6,7 @@
 //! redirect behavior. [`get`] reports actionable failure classes ([`Cause`]).
 //!
 //! An HTTPS connection is trusted when its certificate chains to a root
-//! Clovercut ships (Mozilla's list, as webpki-roots carries it) or to a root
+//! Studio Inspirasi ships (Mozilla's list, as webpki-roots carries it) or to a root
 //! the system trusts. ureq trusted the shipped list alone, so a network that
 //! re-signs HTTPS with a root of its own - a proxy or a GitHub accelerator
 //! in China, an antivirus that scans HTTPS, a company's gateway - failed
@@ -117,9 +117,9 @@ impl Cause {
     /// cause independently of this diagnostic.
     pub fn describe(self) -> String {
         match self {
-            Cause::Blocked => "something on this computer blocked Clovercut from the network - \
+            Cause::Blocked => "something on this computer blocked Studio Inspirasi from the network - \
                                a firewall, an antivirus or a VPN; the browser may be allowed \
-                               where Clovercut is not"
+                               where Studio Inspirasi is not"
                 .to_owned(),
             Cause::Offline => "this computer is not connected to the internet".to_owned(),
             Cause::Dns => "the server's name could not be looked up".to_owned(),
@@ -352,7 +352,7 @@ fn roots() -> rustls::RootCertStore {
         log::debug!("network: the system's root certificates were not all read: {error}");
     }
     let (added, _) = roots.add_parsable_certificates(system.certs);
-    log::debug!("network: {added} of the system's root certificates trusted beside Clovercut's");
+    log::debug!("network: {added} of the system's root certificates trusted beside Studio Inspirasi's");
     roots
 }
 

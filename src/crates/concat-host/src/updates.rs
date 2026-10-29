@@ -34,7 +34,7 @@ use crate::dirs::AppDirs;
 use crate::models;
 
 /// The repository the releases are read from.
-pub const REPO: &str = "tulcoturo/clovercut";
+pub const REPO: &str = "hams-rmdhn/studio-inspirasi";
 
 /// The first release with a Version page: the earliest one a person can
 /// come back from, so the earliest one offered.
@@ -42,7 +42,7 @@ pub const FIRST_SWITCHABLE: Version = Version::new(0, 0, 1);
 
 /// GitHub's list of the repository's releases, newest first. A hundred
 /// covers years of releases at this pace.
-const RELEASES_URL: &str = "https://api.github.com/repos/tulcoturo/clovercut/releases?per_page=100";
+const RELEASES_URL: &str = "https://api.github.com/repos/hams-rmdhn/studio-inspirasi/releases?per_page=100";
 
 /// What a download that was stopped says.
 pub const CANCELLED: &str = "the download was cancelled";
@@ -267,7 +267,7 @@ pub fn installed_as() -> Result<PackageKind, Fixed> {
             linux_kind(
                 std::env::var_os("APPIMAGE").is_some(),
                 std::env::var_os("FLATPAK_ID").is_some(),
-                Path::new("/var/lib/dpkg/info/clovercut.list").exists(),
+                Path::new("/var/lib/dpkg/info/studio-inspirasi.list").exists(),
                 pacman_has_clovercut(),
                 rpm_has_clovercut(),
             )
@@ -332,7 +332,7 @@ fn pacman_has_clovercut() -> bool {
         entries.flatten().any(|entry| {
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            name.strip_prefix("clovercut-")
+            name.strip_prefix("studio-inspirasi-")
                 .is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_digit()))
         })
     })
@@ -343,7 +343,7 @@ fn pacman_has_clovercut() -> bool {
 fn rpm_has_clovercut() -> bool {
     Path::new("/var/lib/rpm").exists()
         && Command::new("rpm")
-            .args(["-q", "clovercut"])
+            .args(["-q", "studio-inspirasi"])
             .output()
             .is_ok_and(|output| output.status.success())
 }
@@ -676,7 +676,7 @@ fn get_text(url: &str) -> Result<String, String> {
         crate::net::Trust::Shipped,
         &|request| {
             request
-                .set("User-Agent", &format!("Clovercut/{}", Version::current()))
+                .set("User-Agent", &format!("Studio-Inspirasi/{}", Version::current()))
                 .set("Accept", "application/vnd.github+json")
         },
     )
@@ -763,10 +763,10 @@ mod tests {
     const MANIFEST: &str = r#"{
         "schema": 2, "version": "0.0.2", "tag": "v0.0.2",
         "binaries": {
-            "macos": {"arm64": {"dmg": {"file": "Clovercut-0.0.2-macos-arm64.dmg", "url": "https://example.test/arm64.dmg", "bytes": 59456586, "sha256": "26cc"}}},
-            "linux": {"x86_64": {"appimage": {"file": "Clovercut-0.0.2-linux-x86_64.AppImage", "url": "https://example.test/x.AppImage", "bytes": 1, "sha256": "5c75"},
+            "macos": {"arm64": {"dmg": {"file": "Studio Inspirasi-0.0.2-macos-arm64.dmg", "url": "https://example.test/arm64.dmg", "bytes": 59456586, "sha256": "26cc"}}},
+            "linux": {"x86_64": {"appimage": {"file": "Studio Inspirasi-0.0.2-linux-x86_64.AppImage", "url": "https://example.test/x.AppImage", "bytes": 1, "sha256": "5c75"},
                                  "deb": {"file": "../evil.deb", "url": "https://example.test/evil", "bytes": 1, "sha256": "00"}}},
-            "windows": {"aarch64": {"setup": {"file": "Clovercut-0.0.2-windows-aarch64-setup.exe", "url": "https://example.test/setup.exe", "sha256": "7042"}}}
+            "windows": {"aarch64": {"setup": {"file": "Studio Inspirasi-0.0.2-windows-aarch64-setup.exe", "url": "https://example.test/setup.exe", "sha256": "7042"}}}
         }
     }"#;
 
@@ -774,7 +774,7 @@ mod tests {
     fn the_package_is_found_by_platform_architecture_and_kind() {
         let mac =
             package_from_manifest(MANIFEST, "macos", "aarch64", PackageKind::Dmg).expect("a Mac's");
-        assert_eq!(mac.file, "Clovercut-0.0.2-macos-arm64.dmg");
+        assert_eq!(mac.file, "Studio Inspirasi-0.0.2-macos-arm64.dmg");
         assert_eq!(mac.bytes, 59456586);
         assert_eq!(mac.sha256, "26cc");
         let appimage = package_from_manifest(MANIFEST, "linux", "x86_64", PackageKind::AppImage)
@@ -852,7 +852,7 @@ mod tests {
         }
         assert_eq!(
             manifest_url("v0.0.2"),
-            "https://github.com/tulcoturo/clovercut/releases/download/v0.0.2/manifest.json"
+            "https://github.com/hams-rmdhn/studio-inspirasi/releases/download/v0.0.2/manifest.json"
         );
     }
 

@@ -1,13 +1,13 @@
 'use strict';
 (async () => {
   const views = [
-    {id:'workspace', file:'editor-workspace', label:'Editor', title:'Your whole composition, in one workspace.', description:'Layer video, text and animated stickers on a compact multitrack timeline.', alt:'Clovercut desktop editor showing the Untitled project 10 composition, media library and multitrack timeline'},
-    {id:'style', file:'text-styling', label:'Text & styling', title:'Give every word your own style.', description:'Type presets, colour and placement alongside your preview.', alt:'Clovercut default title, text style presets and typography controls'},
-    {id:'giphy', file:'giphy-stickers', label:'Stickers', title:'A little movement. A lot of personality.', description:'Search GIPHY, preview stickers and place them on the timeline.', alt:'Clovercut GIPHY library with an animated sticker applied over video'},
-    {id:'audio', file:'audio-library', label:'Music & sound', title:'Find the sound your story needs.', description:'Separate music and sound effects, with track previews and licence information.', alt:'Clovercut YouTube Audio Library music list with sound effect categories and audio controls'},
-    {id:'transitions', file:'transitions-shelf', label:'Transitions', title:'Find your way into the next scene.', description:'Preview transitions and keep your favourites within reach.', alt:'Clovercut transition library with preview thumbnails and favourite stars'},
-    {id:'export', file:'export-dialog', label:'Export', title:'Finish with the settings you choose.', description:'Video, audio and output controls together in one export dialog.', alt:'Clovercut video export dialog showing output, encoding and audio settings'},
-    {id:'start', file:'start-screen', label:'Start screen', title:'A clear place to start.', description:'Create a project, open an edit or find your next step.', alt:'Clovercut start screen with new project, open project and learning resources'}
+    {id:'workspace', file:'editor-workspace', label:'Editor', title:'Your whole composition, in one workspace.', description:'Layer video, text and animated stickers on a compact multitrack timeline.', alt:'Studio Inspirasi desktop editor showing the Untitled project 10 composition, media library and multitrack timeline'},
+    {id:'style', file:'text-styling', label:'Text & styling', title:'Give every word your own style.', description:'Type presets, colour and placement alongside your preview.', alt:'Studio Inspirasi default title, text style presets and typography controls'},
+    {id:'giphy', file:'giphy-stickers', label:'Stickers', title:'A little movement. A lot of personality.', description:'Search GIPHY, preview stickers and place them on the timeline.', alt:'Studio Inspirasi GIPHY library with an animated sticker applied over video'},
+    {id:'audio', file:'audio-library', label:'Music & sound', title:'Find the sound your story needs.', description:'Separate music and sound effects, with track previews and licence information.', alt:'Studio Inspirasi YouTube Audio Library music list with sound effect categories and audio controls'},
+    {id:'transitions', file:'transitions-shelf', label:'Transitions', title:'Find your way into the next scene.', description:'Preview transitions and keep your favourites within reach.', alt:'Studio Inspirasi transition library with preview thumbnails and favourite stars'},
+    {id:'export', file:'export-dialog', label:'Export', title:'Finish with the settings you choose.', description:'Video, audio and output controls together in one export dialog.', alt:'Studio Inspirasi video export dialog showing output, encoding and audio settings'},
+    {id:'start', file:'start-screen', label:'Start screen', title:'A clear place to start.', description:'Create a project, open an edit or find your next step.', alt:'Studio Inspirasi start screen with new project, open project and learning resources'}
   ];
   const source = view => `site_assets/${view.file}.png?v=20261027`;
   const counter = index => `${String(index+1).padStart(2,'0')} / ${String(views.length).padStart(2,'0')}`;
@@ -133,7 +133,7 @@
       label.textContent = detected === 'macos' ? 'Choose your Mac version' : `Choose your ${detected === 'windows' ? 'Windows' : 'Linux'} version`;
     } else {
       const file = detected === 'windows' ? `windows-${arch}-setup.exe` : `${arch}.AppImage`;
-      const href = `https://github.com/tulcoturo/clovercut/releases/download/v0.1.9/Clovercut-0.1.9-${file}`;
+      const href = `https://github.com/tulcoturo/clovercut/releases/download/v0.1.9/Studio Inspirasi-0.1.9-${file}`;
       const architecture = arch === 'aarch64' ? 'ARM64' : 'x64';
       button.href = href;
       label.textContent = `Download for ${detected === 'windows' ? 'Windows' : 'Linux'} ${architecture}`;

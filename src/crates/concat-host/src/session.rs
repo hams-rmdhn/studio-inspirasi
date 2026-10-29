@@ -83,7 +83,7 @@ impl Session {
                     > concat_project::DOCUMENT_VERSION =>
                 {
                     return Err(format!(
-                        "{path} was saved by a newer Clovercut than this one: update to open it"
+                        "{path} was saved by a newer Studio Inspirasi than this one: update to open it"
                     ));
                 }
                 // The settings-only fallback is for supported documents only:
@@ -429,7 +429,7 @@ mod tests {
         std::fs::write(&manifest, &before).unwrap();
 
         match Session::open_info(&info) {
-            Err(error) => assert!(error.contains("newer Clovercut"), "{error}"),
+            Err(error) => assert!(error.contains("newer Studio Inspirasi"), "{error}"),
             Ok(mut session) => {
                 session
                     .save(None)

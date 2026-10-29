@@ -80,7 +80,7 @@ pub fn system_facts() -> Vec<(String, String)> {
     let mut facts = vec![
         (
             t("sysinfo.application"),
-            format!("Clovercut {}", env!("CARGO_PKG_VERSION")),
+            format!("Studio Inspirasi {}", env!("CARGO_PKG_VERSION")),
         ),
         (
             t("sysinfo.build"),

@@ -567,7 +567,7 @@ pub fn select_backend(
     // or a task switcher files the running window under the launcher it
     // came from - its icon, its pin - rather than as an unknown app. Slint
     // ignores it off Linux and the BSDs.
-    let _ = slint::set_xdg_app_id("io.github.tulcoturo.clovercut");
+    let _ = slint::set_xdg_app_id("io.github.hams-rmdhn.studio-inspirasi");
     Ok(gpu)
 }
 
@@ -580,13 +580,13 @@ pub fn select_backend(
 pub fn report_startup_failure(error: &str) {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        let mut description = format!("Clovercut could not start.\n\n{error}");
+        let mut description = format!("Studio Inspirasi could not start.\n\n{error}");
         if let Some(path) = concat_host::logs::current() {
             description.push_str(&format!("\n\nLog: {}", path.display()));
         }
         rfd::MessageDialog::new()
             .set_level(rfd::MessageLevel::Error)
-            .set_title("Clovercut")
+            .set_title("Studio Inspirasi")
             .set_description(description)
             .set_buttons(rfd::MessageButtons::Ok)
             .show();
@@ -601,7 +601,7 @@ pub fn report_save_warning(message: &str) {
     #[cfg(target_os = "linux")]
     rfd::MessageDialog::new()
         .set_level(rfd::MessageLevel::Warning)
-        .set_title("Clovercut — project saved with a warning")
+        .set_title("Studio Inspirasi — project saved with a warning")
         .set_description(message)
         .set_buttons(rfd::MessageButtons::Ok)
         .show();
@@ -1180,7 +1180,7 @@ mod tests {
     fn a_folder_dialog_starts_at_a_folder_that_exists() {
         let root = std::env::temp_dir().join(format!("concat-pick-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
-        let missing = root.join("Clovercut");
+        let missing = root.join("Studio Inspirasi");
         assert_eq!(
             existing_folder(&missing.to_string_lossy()),
             Some(root.as_path())

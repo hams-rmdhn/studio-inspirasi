@@ -1,14 +1,14 @@
 [Desktop Entry]
 Type=Application
-Name=Clovercut
+Name=Studio Inspirasi
 Comment=Edit video and audio locally
-Exec=clovercut
-Icon=clovercut
+Exec=studio-inspirasi
+Icon=studio-inspirasi
 Categories=AudioVideo;Video;
 Terminal=false
-StartupWMClass=io.github.tulcoturo.clovercut
+StartupWMClass=io.github.hams-rmdhn.studio-inspirasi
 Actions=SafeGraphics;
 
 [Desktop Action SafeGraphics]
 Name=Safe graphics
-Exec=clovercut --software
+Exec=studio-inspirasi --software

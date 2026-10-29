@@ -291,7 +291,7 @@ fn system(_url: &str, scheme: &str, host: &str) -> Option<String> {
     let settings = Scutil::parse(&String::from_utf8_lossy(&output.stdout));
     if settings.on("ProxyAutoConfigEnable") {
         log::debug!(
-            "network: this Mac is set to a proxy script ({}), which Clovercut does not run",
+            "network: this Mac is set to a proxy script ({}), which Studio Inspirasi does not run",
             crate::net::safe_url(
                 settings
                     .value("ProxyAutoConfigURLString")
@@ -459,7 +459,7 @@ mod windows {
     /// What the proxy script at `script` says for `url`: `Some(None)` for
     /// directly, `None` when it could not be fetched or run.
     fn run_script(url: &str, script: &str) -> Option<Option<String>> {
-        let agent = wide("Clovercut");
+        let agent = wide("Studio-Inspirasi");
         // SAFETY: plain WinHTTP calls on a session opened and closed here;
         // every pointer passed outlives the call it is passed to.
         unsafe {

@@ -91,7 +91,7 @@ pub fn search(
         &|request| {
             request
                 .set("Authorization", &format!("Token {key}"))
-                .set("User-Agent", "Mozilla/5.0 (compatible; Clovercut/0.1)")
+                .set("User-Agent", "Mozilla/5.0 (compatible; Studio-Inspirasi/0.1)")
         },
     )
     .map_err(|e| match e.error {

@@ -356,7 +356,7 @@ pub fn start(shell: Rc<Shell>, app_weak: slint::Weak<App>) -> slint::Timer {
                             above: true,
                             start: 1.0,
                             style: Some(TextStyle {
-                                content: "Clovercut 4K HDR Walkthrough".into(),
+                                content: "Studio Inspirasi 4K HDR Walkthrough".into(),
                                 font_size: 44.0,
                                 ..Default::default()
                             }),
@@ -376,7 +376,7 @@ pub fn start(shell: Rc<Shell>, app_weak: slint::Weak<App>) -> slint::Timer {
                     capture_screenshot("05_caption_styling_overlay");
 
                     let mut studio = shell_clone.studio.borrow_mut();
-                    let srt_content = "1\n00:00:00,000 --> 00:00:02,000\nWelcome to Clovercut\n\n2\n00:00:02,000 --> 00:00:04,500\nDual Text & Captions System\n";
+                    let srt_content = "1\n00:00:00,000 --> 00:00:02,000\nWelcome to Studio Inspirasi\n\n2\n00:00:02,000 --> 00:00:04,500\nDual Text & Captions System\n";
                     if let Some(src_id) = studio.apply(Command::AddCaptionSource {
                         name: "demo_subtitles.srt".into(),
                         srt: srt_content.into(),

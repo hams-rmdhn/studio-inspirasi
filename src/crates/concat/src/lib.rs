@@ -371,7 +371,7 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
                     .accent
                     .as_deref()
                     .is_none_or(|name| name.trim().is_empty())
-                    .then_some(slint::Color::from_rgb_u8(0x24, 0xd4, 0x7a))
+                    .then_some(slint::Color::from_rgb_u8(0x5a, 0xc4, 0xcd))
             });
         match colour {
             Some(colour) => {

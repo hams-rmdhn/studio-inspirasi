@@ -1,28 +1,48 @@
 <p align="center">
-  <img src="assets/typography.svg" alt="Clovercut" width="460" />
+  <img src="assets/studio-inspirasi.png" alt="Studio Inspirasi" width="460" />
 </p>
 
-<p align="center"><strong>A desktop video editor built around an organised timeline and integrated creative libraries.</strong></p>
+<p align="center"><strong>A desktop video editor built around an organised timeline and integrated creative libraries — kept alive on macOS Monterey 12.x (Intel).</strong></p>
 
 <p align="center">
-  <a href="https://tulcoturo.github.io/clovercut/">Website</a> ·
-  <a href="https://github.com/tulcoturo/clovercut/releases">Download</a> ·
+  <a href="https://github.com/hams-rmdhn/studio-inspirasi/releases">Download</a> ·
   <a href="docs/README.md">Documentation</a> ·
-  <a href="https://github.com/tulcoturo/clovercut/issues">Report an issue</a>
+  <a href="docs/BUILDING-macOS12.md">Build on Monterey</a> ·
+  <a href="https://github.com/hams-rmdhn/studio-inspirasi/issues">Report an issue</a>
 </p>
 
-Clovercut is a free, open-source video editor for **Linux, Windows and macOS**.
-It builds on [Concat](https://github.com/jub0t/Concat), with its own desktop
-workflow: a fixed main video track, dedicated visual and audio lanes, workspace
-presets and searchable content libraries. Editing and AI processing run locally,
-with no Clovercut account, subscription or export watermark.
+Studio Inspirasi is a free, open-source video editor for **macOS**, forked
+from [Clovercut](https://github.com/tulcoturo/clovercut), which builds on
+[Concat](https://github.com/jub0t/Concat). This fork exists for one reason:
+the official macOS package no longer runs on macOS Monterey 12.x, and this
+one does — with the complete AI feature set (cutout, smart brushes, enhance,
+Whisper captions, Chatterbox TTS) enabled.
 
-![Clovercut desktop workspace with creative libraries, preview, inspector and colour-coded timeline](assets/screenshots/editor-workspace.png)
+Editing and AI processing run locally, with no account, subscription or
+export watermark.
 
-## What Clovercut adds
+![Studio Inspirasi desktop workspace with creative libraries, preview, inspector and colour-coded timeline](assets/screenshots/editor-workspace.png)
 
-Clovercut develops its own editing experience on top of Concat's engine.
-Its main additions and workflow differences are:
+## What Studio Inspirasi adds
+
+Everything Clovercut offers, plus:
+
+- **Full macOS Monterey 12.x support (x86_64).** A compatibility shim
+  (`scripts/macos/libc++_monterey_shim.cpp`) supplies the libc++, Accelerate
+  and VideoToolbox symbols newer macOS builds assume, so the bundled
+  FFmpeg, ONNX Runtime and libplacebo libraries load on macOS 12.
+- **All ONNX-based AI features on Monterey** — upstream disables them below
+  macOS 13.4; this build re-enables them through the shim, with CPU
+  fallback when the older CoreML refuses a model.
+- **Optimised for Intel Macs with AVX2.** Whisper/GGML is compiled with
+  `AVX2`, `FMA`, `F16C` and `BMI2` — several times faster transcription on
+  Broadwell-and-newer Intel CPUs than the compatibility build upstream
+  ships.
+- **A maintained upgrade path.** `scripts/macos/sync-upstream.sh` merges
+  new Clovercut releases while preserving this branding and the Monterey
+  compatibility layer; see [docs/BUILDING-macOS12.md](docs/BUILDING-macOS12.md).
+
+From Clovercut it inherits:
 
 - **An organised timeline.** A fixed main video track anchors the edit, with
   overlays, titles, captions and stickers above it and audio below. Track types
@@ -40,32 +60,16 @@ Its main additions and workflow differences are:
   download them on demand and preview them by hovering over their cards.
   Installed transitions remain available offline.
 
-Local Whisper captions, text-to-speech, GPU compositing, keyframes and export
-build on the capabilities inherited from Concat. Clovercut selectively adapts
-upstream improvements to its own timeline and project behaviour; the
-[adaptation record](docs/UPSTREAM.md) documents those decisions.
-
 ## Download and install
 
-[**Download Clovercut 0.1.9**](https://github.com/tulcoturo/clovercut/releases/tag/v0.1.9)
-— [Release notes](docs/releases/0.1.9.md)
+[**Download Studio Inspirasi 0.1.9 for macOS Monterey+ (Intel)**](https://github.com/hams-rmdhn/studio-inspirasi/releases)
 
 | Platform | Packages | Architectures |
 |---|---|---|
-| Linux | AppImage, `.deb`, `.rpm` | x86_64, ARM64 |
-| Windows | Installer or portable ZIP | x86_64, ARM64 |
-| macOS | DMG | Intel, Apple Silicon |
+| macOS 12 Monterey+ | DMG | Intel x86_64 |
 
-Linux installer:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/tulcoturo/clovercut/main/scripts/install.sh | sh
-```
-
-See [Linux installation](docs/INSTALLATION.md) for package selection, manual
-installation and graphics fallback. Desktop releases are the priority; mobile
-builds follow a separate schedule. Changes on `main` may be newer than the
-published packages.
+The DMG is ad-hoc signed: on first launch, right-click the app and choose
+**Open**, or approve it in System Settings → Privacy & Security.
 
 ## Local processing, optional online libraries
 
@@ -79,15 +83,16 @@ licences and attribution requirements. See [content library setup](docs/AUDIO_LI
 
 ## Documentation and development
 
+- [Build on macOS Monterey 12.x and follow upstream](docs/BUILDING-macOS12.md)
 - [Editing guide](docs/EDITING.md) and [keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md)
 - [Content libraries](docs/AUDIO_LIBRARY.md), [personal lists](docs/LIBRARY_ORGANIZATION.md) and [GL Transitions](docs/GL_TRANSITIONS.md)
 - [Build from source](docs/RELEASING.md#local-development) and [native dependencies](src/README.md#build-and-run)
-- [Automation with MCP](docs/MCP.md)
 - [Contributing](CONTRIBUTING.md) and [translations](TRANSLATING.md)
 
 ## Licence and attribution
 
-Clovercut is an independent project based on Concat by Jareer and the Concat
-contributors, whose engine and contributions remain credited. Distributed under
+Studio Inspirasi is an independent fork of Clovercut by tulcoturo, which is
+itself based on Concat by Jareer and the Concat contributors, whose engine
+and contributions remain credited. Distributed under
 [AGPL-3.0-or-later](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md)
 and [trademark information](TRADEMARK.md).
