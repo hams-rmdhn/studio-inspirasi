@@ -21,7 +21,7 @@ Whisper captions, Chatterbox TTS) enabled.
 Editing and AI processing run locally, with no account, subscription or
 export watermark.
 
-![Studio Inspirasi desktop workspace with creative libraries, preview, inspector and colour-coded timeline](assets/screenshots/editor-workspace.png)
+![Studio Inspirasi desktop workspace with creative libraries, preview, inspector and colour-coded timeline, running on macOS Monterey 12](assets/screenshots/studio-inspirasi-workspace.jpg)
 
 ## What Studio Inspirasi adds
 
