@@ -37,7 +37,9 @@ expect_ok() {
 
 [ $# -eq 1 ] || { echo "usage: $0 Clovercut.app" >&2; exit 2; }
 app=$1
-bin="$app/Contents/MacOS/clovercut"
+exe=$(/usr/libexec/PlistBuddy -c "Print CFBundleExecutable" "$app/Contents/Info.plist" 2>/dev/null || true)
+[ -n "$exe" ] || exe=clovercut
+bin="$app/Contents/MacOS/$exe"
 [ -x "$bin" ] || fail "$bin is not there"
 
 say "the signature"
@@ -63,10 +65,10 @@ if [ -n "$leaks" ]; then
 fi
 echo "every load path is the system's or the bundle's"
 
-say "clovercut --version"
-HOME=$(mktemp -d) expect_ok "clovercut --version" 60 "$bin" --version
+say "$exe --version"
+HOME=$(mktemp -d) expect_ok "$exe --version" 60 "$bin" --version
 
-say "clovercut --smoke"
-HOME=$(mktemp -d) expect_ok "clovercut --smoke" 180 "$bin" --smoke
+say "$exe --smoke"
+HOME=$(mktemp -d) expect_ok "$exe --smoke" 180 "$bin" --smoke
 
 say "ok"

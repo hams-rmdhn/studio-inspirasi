@@ -114,6 +114,21 @@ impl Model {
         providers: Vec<ort::ep::ExecutionProviderDispatch>,
     ) -> Result<Model, String> {
         ready()?;
+        let has_hw = providers.len() > 1;
+        match Self::build_with_providers(bytes, dims, providers) {
+            Ok(model) => Ok(model),
+            Err(_) if has_hw => {
+                Self::build_with_providers(bytes, dims, vec![ort::ep::CPU::default().build()])
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    fn build_with_providers(
+        bytes: &[u8],
+        dims: &[(&str, i64)],
+        providers: Vec<ort::ep::ExecutionProviderDispatch>,
+    ) -> Result<Model, String> {
         let mut builder = Session::builder().map_err(|error| format!("onnx runtime: {error}"))?;
         for (name, size) in dims {
             builder = builder

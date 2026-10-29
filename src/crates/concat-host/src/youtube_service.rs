@@ -87,17 +87,24 @@ fn runtime_asset(os: &str, arch: &str) -> Result<(&'static str, &'static str), S
 
 fn runtime(root: &Path) -> Result<PathBuf, String> {
     // Node 22+ provides native fetch and WebSocket, so no npm installation runs.
-    if let Ok(output) = hidden(Command::new("node").arg("--version")).output()
-        && output.status.success()
-        && String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .trim_start_matches('v')
-            .split('.')
-            .next()
-            .and_then(|v| v.parse::<u32>().ok())
-            .is_some_and(|v| v >= 22)
-    {
-        return Ok(PathBuf::from("node"));
+    let candidates: &[&str] = if cfg!(target_os = "macos") {
+        &["node", "/usr/local/bin/node", "/opt/homebrew/bin/node"]
+    } else {
+        &["node"]
+    };
+    for candidate in candidates {
+        if let Ok(output) = hidden(Command::new(candidate).arg("--version")).output()
+            && output.status.success()
+            && String::from_utf8_lossy(&output.stdout)
+                .trim()
+                .trim_start_matches('v')
+                .split('.')
+                .next()
+                .and_then(|v| v.parse::<u32>().ok())
+                .is_some_and(|v| v >= 22)
+        {
+            return Ok(PathBuf::from(candidate));
+        }
     }
     let folder = root.join(format!("runtime-{VERSION}"));
     let node = folder.join(if cfg!(windows) { "node.exe" } else { "node" });
