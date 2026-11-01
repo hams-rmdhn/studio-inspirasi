@@ -732,6 +732,11 @@ pub struct Models {
     pub library_views: Rc<VecModel<LibraryViewData>>,
     pub menu: Rc<VecModel<MenuItemData>>,
     pub bar: Rc<VecModel<MenuItemData>>,
+    /// The File / Edit / View menus whole, for the macOS menu bar while
+    /// the window is fullscreen and the strip's own labels hide.
+    pub menu_file: Rc<VecModel<MenuItemData>>,
+    pub menu_edit: Rc<VecModel<MenuItemData>>,
+    pub menu_view: Rc<VecModel<MenuItemData>>,
     /// The sheets' option lists: what is installed, and who can speak.
     pub caption_models: Rc<VecModel<SharedString>>,
     pub caption_rows: Rc<VecModel<crate::ui::CaptionRowData>>,
@@ -763,6 +768,10 @@ pub struct Models {
     pub seats: Rc<VecModel<SeatBox>>,
     pub dividers: Rc<VecModel<DockDivider>>,
     pub recents: Rc<VecModel<RecentProjectData>>,
+    /// The launch screen's category list, with each one's project count.
+    pub categories: Rc<VecModel<CategoryData>>,
+    /// The Templates page's gallery of saved bundles.
+    pub library_templates: Rc<VecModel<TemplateData>>,
     /// The Text page's presets, published once from the loaded list.
     pub text_presets: Rc<VecModel<TextPresetData>>,
     /// The Latin ones, for the Text page's Styles shelf.
@@ -821,6 +830,9 @@ impl Models {
             library_views: Rc::new(VecModel::default()),
             menu: Rc::new(VecModel::default()),
             bar: Rc::new(VecModel::default()),
+            menu_file: Rc::new(VecModel::default()),
+            menu_edit: Rc::new(VecModel::default()),
+            menu_view: Rc::new(VecModel::default()),
             caption_models: Rc::new(VecModel::default()),
             caption_rows: Rc::new(VecModel::default()),
             caption_sources: Rc::new(VecModel::default()),
@@ -846,6 +858,8 @@ impl Models {
             seats: Rc::new(VecModel::default()),
             dividers: Rc::new(VecModel::default()),
             recents: Rc::new(VecModel::default()),
+            categories: Rc::new(VecModel::default()),
+            library_templates: Rc::new(VecModel::default()),
             text_presets: Rc::new(VecModel::default()),
             style_presets: Rc::new(VecModel::default()),
             language_presets: Rc::new(VecModel::default()),
@@ -872,6 +886,28 @@ pub fn sync<T: Clone + PartialEq + 'static>(model: &VecModel<T>, next: Vec<T>) {
     for value in tail {
         model.push(value);
     }
+}
+
+/// The slot-fill sheet's state: the template being turned into a project
+/// and, per slot in order, the picked file's display name with the fill
+/// its probe produced.
+pub struct TemplateFill {
+    pub template: concat_host::templates::TemplateInfo,
+    pub fills: Vec<Option<(String, templates::SlotFill)>>,
+}
+
+/// The first of `name`, `name 2`, ... whose folder is free under
+/// `location` — the same rule the new-project sheet applies to
+/// "Untitled project".
+fn free_name(location: &str, name: &str) -> String {
+    std::iter::once(name.to_owned())
+        .chain((2..).map(|n| format!("{name} {n}")))
+        .find(|candidate| {
+            !std::path::Path::new(location)
+                .join(projects::folder_name(candidate))
+                .exists()
+        })
+        .expect("the numbers do not run out")
 }
 
 /// The window's state. See the module docs for what is whose.
@@ -979,6 +1015,19 @@ pub struct Studio {
     pub on_start: bool,
     pub start: crate::panes::start::StartPane,
     pub recents: Vec<projects::Recent>,
+    /// Studio Inspirasi's project categories, in a cell because publish —
+    /// a `&self` — re-keys a moved folder's mapping as it is read.
+    pub categories: RefCell<crate::project_categories::Categories>,
+    /// The template library, re-read off disk after a save or a delete.
+    pub templates_library: Vec<concat_host::templates::TemplateInfo>,
+    /// Template posters by bundle path, filled the first publish that
+    /// needs each.
+    pub template_posters: RefCell<HashMap<String, slint::Image>>,
+    /// The slot-fill sheet over a template that has placeholders, or
+    /// none. `Some` puts the sheet up.
+    pub template_fill: Option<TemplateFill>,
+    /// The slot ids whose picked file is being probed on a worker.
+    pub template_fill_pending: HashSet<String>,
     pub posters: HashMap<String, slint::Image>,
     posters_pending: HashSet<String>,
     /// How long each recent project's timeline runs, in seconds, read on
@@ -2407,6 +2456,9 @@ impl Studio {
         i18n::select(prefs.locale.as_deref().unwrap_or(i18n::ENGLISH), &host.dirs);
         let languages = i18n::languages(&host.dirs);
         let recents = projects::recents(&host.dirs.config);
+        let categories = crate::project_categories::Categories::load(&host.dirs.config);
+        start.view = categories.view;
+        let templates_library = concat_host::templates::list(&host.dirs.config);
         let text_presets = presets::all(&host.dirs);
         let mut studio = Self {
             prefs,
@@ -2460,6 +2512,11 @@ impl Studio {
             on_start: true,
             start,
             recents,
+            categories: RefCell::new(categories),
+            templates_library,
+            template_posters: RefCell::new(HashMap::new()),
+            template_fill: None,
+            template_fill_pending: HashSet::new(),
             posters: HashMap::new(),
             posters_pending: HashSet::new(),
             lengths: HashMap::new(),
@@ -10797,7 +10854,151 @@ impl Studio {
         spawn(
             move || templates::save(&config, &document, &settings, &path, &name),
             |studio, _, _, result| match result {
-                Ok(info) => studio.notify(&tf("studio.savedTemplate", &[&info.name]), false),
+                Ok(info) => {
+                    studio.templates_library = templates::list(&studio.host.dirs.config);
+                    studio.notify(&tf("studio.savedTemplate", &[&info.name]), false);
+                }
+                Err(error) => studio.notify(&error, true),
+            },
+        );
+    }
+
+    /// Opens a template the gallery was pressed on: a bundle with no
+    /// slots is a project right away, one with placeholders puts up the
+    /// fill sheet first, because `instantiate` refuses a half-filled set.
+    pub fn use_template(&mut self, path: &str) {
+        let Some(template) = self
+            .templates_library
+            .iter()
+            .find(|template| template.path == path)
+            .cloned()
+        else {
+            return;
+        };
+        if template.slots.is_empty() {
+            self.instantiate_template(template, Vec::new());
+        } else {
+            self.template_fill = Some(TemplateFill {
+                fills: vec![None; template.slots.len()],
+                template,
+            });
+        }
+    }
+
+    /// Drops a bundle from the library and the page, poster and all.
+    pub fn delete_template(&mut self, path: &str) {
+        match templates::delete(&self.host.dirs.config, path) {
+            Ok(()) => {
+                self.templates_library = templates::list(&self.host.dirs.config);
+                self.template_posters.borrow_mut().remove(path);
+                self.notify(&t("mediaPane.templateDeleted"), false);
+            }
+            Err(error) => self.notify(&error, true),
+        }
+    }
+
+    /// The fill sheet's per-slot verb: a picker, then a probe on a
+    /// worker, then the fill it produced — so the heavy read is off the
+    /// interface thread.
+    pub fn template_fill_pick(&mut self, media_id: &str) {
+        if self.template_fill.is_none() {
+            return;
+        }
+        let media_id = media_id.to_owned();
+        crate::host::pick_files_then(
+            t("mediaPane.chooseFile"),
+            None,
+            move |studio, _, _, paths| {
+                let Some(picked) = paths.into_iter().next() else {
+                    return;
+                };
+                let display = picked
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let picked = picked.to_string_lossy().into_owned();
+                studio.template_fill_pending.insert(media_id.clone());
+                let media_id = media_id.clone();
+                spawn(
+                    move || {
+                        concat_host::media::probe(&picked)
+                            .map(|summary| summary.to_new_media())
+                    },
+                    move |studio, _, _, result| {
+                        studio.template_fill_pending.remove(&media_id);
+                        match result {
+                            Ok(item) => {
+                                if let Some(fill) = &mut studio.template_fill
+                                    && let Some(index) = fill
+                                        .template
+                                        .slots
+                                        .iter()
+                                        .position(|slot| slot.media_id == media_id)
+                                {
+                                    fill.fills[index] = Some((
+                                        display.clone(),
+                                        templates::SlotFill {
+                                            media_id: media_id.clone(),
+                                            item,
+                                        },
+                                    ));
+                                }
+                            }
+                            Err(error) => studio.notify(&error, true),
+                        }
+                    },
+                );
+            },
+        );
+    }
+
+    /// The fill sheet's verb: every slot filled makes a project of the
+    /// template; the sheet stays put with its picks on a failure.
+    pub fn template_fill_create(&mut self) {
+        let Some(fill) = self.template_fill.as_ref() else {
+            return;
+        };
+        if fill.fills.iter().any(|entry| entry.is_none()) {
+            return;
+        }
+        let Some(fill) = self.template_fill.take() else {
+            return;
+        };
+        let fills: Vec<templates::SlotFill> = fill
+            .fills
+            .into_iter()
+            .filter_map(|entry| entry.map(|(_, fill)| fill))
+            .collect();
+        self.instantiate_template(fill.template, fills);
+    }
+
+    /// Puts the fill sheet down without making anything.
+    pub fn template_fill_cancel(&mut self) {
+        self.template_fill = None;
+        self.template_fill_pending.clear();
+    }
+
+    /// Unpacks a bundle into a fresh project and opens it, on a worker
+    /// for the copy and the engine batch alike.
+    fn instantiate_template(
+        &mut self,
+        template: templates::TemplateInfo,
+        fills: Vec<templates::SlotFill>,
+    ) {
+        let location = self
+            .prefs
+            .project_location()
+            .map(str::to_owned)
+            .unwrap_or_else(|| self.start.location.clone());
+        let name = free_name(&location, &template.name);
+        spawn(
+            move || templates::instantiate(&template.path, &location, &name, fills),
+            |studio, _, _, result| match result {
+                Ok((info, _)) => {
+                    if let Err(error) = studio.open_project(info) {
+                        studio.notify(&error, true);
+                    }
+                }
                 Err(error) => studio.notify(&error, true),
             },
         );
@@ -10817,6 +11018,7 @@ impl Studio {
             || self.speech.open
             || self.speech.new_voice.open
             || self.start.composing
+            || self.template_fill.is_some()
     }
 
     // ── notices ──
@@ -10848,6 +11050,37 @@ impl Studio {
             }
         };
         let editor = app.global::<Editor>();
+        // The template fill sheet, when one is up: the bundle's slots
+        // with each pick's name, and whether every slot is filled.
+        let fill = self.template_fill.as_ref();
+        editor.set_template_fill(TemplateFillData {
+            open: fill.is_some(),
+            name: fill
+                .map(|fill| fill.template.name.as_str().into())
+                .unwrap_or_default(),
+            can_create: fill.is_some_and(|fill| fill.fills.iter().all(|f| f.is_some())),
+            slots: slint::ModelRc::from(std::rc::Rc::new(slint::VecModel::from(
+                fill.map(|fill| {
+                    fill.template
+                        .slots
+                        .iter()
+                        .zip(fill.fills.iter())
+                        .map(|(slot, entry)| SlotData {
+                            media_id: slot.media_id.as_str().into(),
+                            name: slot.name.as_str().into(),
+                            kind: format!("{:?}", slot.kind).into(),
+                            seconds: format!("{:.1}s", slot.seconds).into(),
+                            fill: entry
+                                .as_ref()
+                                .map(|(display, _)| display.as_str().into())
+                                .unwrap_or_default(),
+                            pending: self.template_fill_pending.contains(&slot.media_id),
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default(),
+            ))),
+        });
         editor.set_keys_undo(hint("undo").into());
         editor.set_keys_redo(hint("redo").into());
         editor.set_keys_split(hint("split").into());
@@ -13273,17 +13506,94 @@ impl Studio {
             message: self.toast.message.as_str().into(),
             failed: self.toast.failed,
         });
-        app.set_start(self.start.data());
+        // One borrow for the whole mapping pass: a moved folder's stored
+        // path is re-keyed as its card is read, which needs `&mut`.
+        let mut categories = self.categories.borrow_mut();
+        // The grid and the list show one page of the filtered recents:
+        // the page the pane is on, clamped inside whatever the filter
+        // left — a page emptied by a search or a forget never draws.
+        let filtered = crate::panes::start::shown(
+            &self.recents,
+            &self.start.query,
+            self.start.sort,
+            &self.start.category,
+            &categories,
+        );
+        let pages = filtered
+            .len()
+            .div_ceil(crate::panes::start::PAGE_SIZE)
+            .max(1);
+        let page = self.start.page.min(pages - 1);
+        let mut start_data = self.start.data();
+        start_data.page = page as i32;
+        start_data.pages = pages as i32;
+        start_data.filtered_total = filtered.len() as i32;
+        start_data.unassigned = self
+            .recents
+            .iter()
+            .filter(|recent| !categories.projects.contains_key(&recent.info.path))
+            .count() as i32;
+        start_data.category_title = if self.start.category.is_empty() {
+            SharedString::default()
+        } else if self.start.category == crate::project_categories::FILTER_NONE {
+            t("start.uncategorized").into()
+        } else {
+            categories
+                .by_id(&self.start.category)
+                .map(|category| category.name.as_str().into())
+                .unwrap_or_default()
+        };
+        app.set_start(start_data);
         app.set_recents_total(self.recents.len() as i32);
         sync(
+            &models.categories,
+            categories
+                .categories
+                .iter()
+                .map(|category| {
+                    let count = self
+                        .recents
+                        .iter()
+                        .filter(|recent| {
+                            categories.projects.get(&recent.info.path)
+                                == Some(&category.id)
+                        })
+                        .count() as i32;
+                    let [r, g, b, _] = categories.colour_of(&category.id);
+                    CategoryData {
+                        id: category.id.as_str().into(),
+                        name: category.name.as_str().into(),
+                        colour: slint::Color::from_rgb_u8(r, g, b).into(),
+                        count,
+                    }
+                })
+                .collect(),
+        );
+        sync(
             &models.recents,
-            crate::panes::start::shown(&self.recents, &self.start.query, self.start.sort)
-                .into_iter()
-                .map(|recent| {
-                    let project = &recent.info;
-                    RecentProjectData {
-                        path: project.path.as_str().into(),
-                        name: project.name.as_str().into(),
+            filtered
+            .into_iter()
+            .skip(page * crate::panes::start::PAGE_SIZE)
+            .take(crate::panes::start::PAGE_SIZE)
+            .map(|recent| {
+                let project = &recent.info;
+                let category_id = categories
+                    .of_project(&project.path)
+                    .map(|category| category.id.clone());
+                let (category, category_colour) = category_id
+                    .and_then(|id| {
+                        let [r, g, b, _] = categories.colour_of(&id);
+                        categories
+                            .by_id(&id)
+                            .map(|category| category.name.clone())
+                            .map(|name| (name, slint::Color::from_rgb_u8(r, g, b)))
+                    })
+                    .unwrap_or_else(|| (String::new(), slint::Color::default()));
+                RecentProjectData {
+                    category: category.as_str().into(),
+                    category_colour: category_colour.into(),
+                    path: project.path.as_str().into(),
+                    name: project.name.as_str().into(),
                         detail: format!(
                             "{} × {} · {}",
                             project.width,
@@ -13307,6 +13617,61 @@ impl Studio {
                         ratio: project.width as f32 / project.height.max(1) as f32,
                         missing: !recent.present,
                         poster: self.posters.get(&project.path).cloned().unwrap_or_default(),
+                    }
+                })
+                .collect(),
+        );
+
+        drop(categories);
+
+        // The Templates page's gallery: the saved bundles, poster first.
+        sync(
+            &models.library_templates,
+            self.templates_library
+                .iter()
+                .map(|template| {
+                    let poster = self
+                        .template_posters
+                        .borrow_mut()
+                        .entry(template.path.clone())
+                        .or_insert_with(|| {
+                            if template.has_poster {
+                                slint::Image::load_from_path(
+                                    std::path::Path::new(&template.path)
+                                        .join("poster.jpg")
+                                        .as_path(),
+                                )
+                                .unwrap_or_default()
+                            } else {
+                                slint::Image::default()
+                            }
+                        })
+                        .clone();
+                    TemplateData {
+                        path: template.path.as_str().into(),
+                        name: template.name.as_str().into(),
+                        detail: format!(
+                            "{} × {} · {}",
+                            template.width,
+                            template.height,
+                            rate_label(template.rate_num, template.rate_den)
+                        )
+                        .into(),
+                        poster,
+                        slots: slint::ModelRc::from(std::rc::Rc::new(slint::VecModel::from(
+                            template
+                                .slots
+                                .iter()
+                                .map(|slot| SlotData {
+                                    media_id: slot.media_id.as_str().into(),
+                                    name: slot.name.as_str().into(),
+                                    kind: format!("{:?}", slot.kind).into(),
+                                    seconds: format!("{:.1}s", slot.seconds).into(),
+                                    fill: SharedString::default(),
+                                    pending: false,
+                                })
+                                .collect::<Vec<_>>(),
+                        ))),
                     }
                 })
                 .collect(),
@@ -13628,6 +13993,15 @@ impl Studio {
         sync(&models.bar, bar);
         app.set_app_menu_token(self.menu_bar_token);
         app.set_open_menu(self.open_menu);
+        // The same three menus whole, for the native menu bar macOS
+        // shows while the window is fullscreen and the strip's own
+        // labels hide (app.slint's MenuBar). Nowhere else are they read,
+        // so off the Mac the models just sit empty.
+        if platform::MACOS {
+            sync(&models.menu_file, self.native_menu_rows(0));
+            sync(&models.menu_edit, self.native_menu_rows(1));
+            sync(&models.menu_view, self.native_menu_rows(2));
+        }
     }
 
     /// Asks the workers for anything the launch screen or the bin is
@@ -14019,7 +14393,31 @@ impl Studio {
         rows.iter().map(|row| metrics(row.kind)).sum::<f32>() + 12.0
     }
 
+    /// The open menu's rows: File, Edit or View, whichever `open_menu`
+    /// is. The in-window strip reads them one menu at a time; the macOS
+    /// menu bar asks for all three through [`Self::menu_bar_rows`].
     fn menu_bar(&self) -> Vec<MenuItemData> {
+        self.menu_bar_rows(self.open_menu)
+    }
+
+    /// `menu`'s rows for the macOS menu bar: the same list with each
+    /// separator carrying the runtime's placeholder title — the string a
+    /// `MenuSeparator` lowers to, and the only way a `MenuItem` row marks
+    /// one when a `for` builds the menu from a model (app.slint).
+    fn native_menu_rows(&self, menu: i32) -> Vec<MenuItemData> {
+        self.menu_bar_rows(menu)
+            .into_iter()
+            .map(|mut item| {
+                if item.kind == MenuRow::Separator {
+                    item.label = "\u{E001}⸺".into();
+                }
+                item
+            })
+            .collect()
+    }
+
+    /// `menu`'s rows: 0 File, 1 Edit, 2 View.
+    fn menu_bar_rows(&self, menu: i32) -> Vec<MenuItemData> {
         let row =
             |id: &str, label: String, glyph: Glyph, shortcut: &str, enabled: bool| MenuItemData {
                 id: id.into(),
@@ -14058,7 +14456,7 @@ impl Studio {
         });
         let has_selection_media = !self.media.selected.is_empty();
 
-        match self.open_menu {
+        match menu {
             0 => vec![
                 row(
                     "add-selected",

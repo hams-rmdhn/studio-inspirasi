@@ -65,6 +65,7 @@ mod panes;
 mod phase5_ui_walkthrough;
 mod prefs;
 mod presets;
+mod project_categories;
 mod preview_interaction;
 mod source;
 mod speed_ramp;
@@ -502,6 +503,8 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
         editor.set_seats(ModelRc::from(models.seats.clone()));
         editor.set_dividers(ModelRc::from(models.dividers.clone()));
         app.set_recents(ModelRc::from(models.recents.clone()));
+        app.set_categories(ModelRc::from(models.categories.clone()));
+        editor.set_library_templates(ModelRc::from(models.library_templates.clone()));
         editor.set_text_presets(ModelRc::from(models.text_presets.clone()));
         editor.set_style_presets(ModelRc::from(models.style_presets.clone()));
         editor.set_language_presets(ModelRc::from(models.language_presets.clone()));
@@ -680,6 +683,25 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
                 if app.get_window_maximized() != maximized {
                     app.set_window_maximized(maximized);
                 }
+                // The same signal covers macOS's own fullscreen: the
+                // strip's menus hide behind the title bar's hover there.
+                // Checked again after the space animation settles, since
+                // AppKit updates the monitor geometry mid-transition.
+                let fullscreen = platform::is_fullscreen(app.window());
+                if app.get_window_fullscreen() != fullscreen {
+                    app.set_window_fullscreen(fullscreen);
+                }
+                for delay in [250, 700] {
+                    let weak_settled = app.as_weak();
+                    slint::Timer::single_shot(std::time::Duration::from_millis(delay), move || {
+                        if let Some(app) = weak_settled.upgrade() {
+                            let fullscreen = platform::is_fullscreen(app.window());
+                            if app.get_window_fullscreen() != fullscreen {
+                                app.set_window_fullscreen(fullscreen);
+                            }
+                        }
+                    });
+                }
             }
         }
     });
@@ -786,6 +808,27 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
     }));
     app.on_start_sort_changed(on_window!(|state, sort: i32| {
         state.handle(Msg::Start(StartMsg::Sort(sort)));
+    }));
+    app.on_start_assign_category(on_window!(|state, path: SharedString, id: SharedString| {
+        state.handle(Msg::Start(StartMsg::AssignCategory {
+            path: path.to_string(),
+            category: id.to_string(),
+        }));
+    }));
+    app.on_start_create_category(on_window!(|state, path: SharedString, name: SharedString| {
+        state.handle(Msg::Start(StartMsg::CreateCategory {
+            path: path.to_string(),
+            name: name.to_string(),
+        }));
+    }));
+    app.on_start_category_filter(on_window!(|state, id: SharedString| {
+        state.handle(Msg::Start(StartMsg::CategoryFilter(id.to_string())));
+    }));
+    app.on_start_view_mode(on_window!(|state, view: i32| {
+        state.handle(Msg::Start(StartMsg::ViewMode(view)));
+    }));
+    app.on_start_page_changed(on_window!(|state, page: i32| {
+        state.handle(Msg::Start(StartMsg::Page(page)));
     }));
     app.on_start_link(on_window!(|state, name: SharedString| {
         state.handle(Msg::Start(StartMsg::Link(name.to_string())));
@@ -1045,6 +1088,21 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
     }));
     editor.on_library_save_template(on_window!(|state| {
         state.save_template();
+    }));
+    editor.on_template_use(on_window!(|state, path: SharedString| {
+        state.use_template(path.as_str());
+    }));
+    editor.on_template_delete(on_window!(|state, path: SharedString| {
+        state.delete_template(path.as_str());
+    }));
+    editor.on_template_fill_pick(on_window!(|state, media_id: SharedString| {
+        state.template_fill_pick(media_id.as_str());
+    }));
+    editor.on_template_fill_create(on_window!(|state| {
+        state.template_fill_create();
+    }));
+    editor.on_template_fill_cancel(on_window!(|state| {
+        state.template_fill_cancel();
     }));
     // Nothing borrowed: the dialog is asked on a turn of its own, and the
     // files it answers with are imported there; see `host::after_dialog`.

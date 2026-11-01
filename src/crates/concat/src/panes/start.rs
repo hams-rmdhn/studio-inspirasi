@@ -54,6 +54,24 @@ pub enum StartMsg {
     SearchEdited(String),
     /// How the projects are ordered: [`SORT_RECENT`] or [`SORT_NAME`].
     Sort(i32),
+    /// Points a project at a category — or takes it off any, on "".
+    AssignCategory {
+        path: String,
+        category: String,
+    },
+    /// Makes a category and puts the project that asked for it in it.
+    CreateCategory {
+        path: String,
+        name: String,
+    },
+    /// Which category the grid is limited to: "" for all of them, or
+    /// [`project_categories::FILTER_NONE`] for the unassigned ones.
+    CategoryFilter(String),
+    /// The launch screen's projects as posters or as rows.
+    ViewMode(i32),
+    /// The page of filtered projects being looked at: [`PAGE_SIZE`] a
+    /// page, zero-based.
+    Page(i32),
     /// One of the learn-and-community cards, or the version line, by the
     /// name [`link`] knows it by.
     Link(String),
@@ -67,6 +85,11 @@ pub const SORT_RECENT: i32 = 0;
 /// The projects by name, A to Z.
 pub const SORT_NAME: i32 = 1;
 
+/// The projects a page of the grid or the list holds. Eighteen divides
+/// by the two- and three-column rows the grid draws at the widths the
+/// launch screen usually has, so no page ends on a row's half.
+pub const PAGE_SIZE: usize = 18;
+
 /// The recents the grid shows: those whose name or folder holds every
 /// word of the query, ignoring case, newest first or by name. A missing
 /// folder is found and sorted like any other.
@@ -74,11 +97,24 @@ pub fn shown<'a>(
     recents: &'a [projects::Recent],
     query: &str,
     sort: i32,
+    filter: &str,
+    categories: &crate::project_categories::Categories,
 ) -> Vec<&'a projects::Recent> {
     let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
     let mut shown: Vec<&projects::Recent> = recents
         .iter()
         .filter(|recent| {
+            if filter == crate::project_categories::FILTER_NONE
+                && categories.projects.contains_key(&recent.info.path)
+            {
+                return false;
+            }
+            if !filter.is_empty()
+                && filter != crate::project_categories::FILTER_NONE
+                && categories.projects.get(&recent.info.path).map(String::as_str) != Some(filter)
+            {
+                return false;
+            }
             let name = recent.info.name.to_lowercase();
             let path = recent.info.path.to_lowercase();
             words
@@ -145,6 +181,15 @@ pub struct StartPane {
     pub query: String,
     /// [`SORT_RECENT`] or [`SORT_NAME`].
     pub sort: i32,
+    /// The category the grid is limited to: "" for all of them,
+    /// [`project_categories::FILTER_NONE`] for the unassigned ones.
+    pub category: String,
+    /// [`project_categories::VIEW_GRID`] or [`project_categories::VIEW_LIST`].
+    pub view: i32,
+    /// The page of filtered projects being looked at, zero-based: the
+    /// search, the sort and the category all start over at the first
+    /// page, and a shorter result clamps it at publish.
+    pub page: usize,
     /// Media dropped on the launch screen, waiting for the project the
     /// sheet is about to make: imported into it once it opens, and let go
     /// if the sheet is put down instead.
@@ -169,6 +214,9 @@ impl Default for StartPane {
             error: String::new(),
             query: String::new(),
             sort: SORT_RECENT,
+            category: String::new(),
+            view: crate::project_categories::VIEW_GRID,
+            page: 0,
             dropped: Vec::new(),
         }
     }
@@ -336,14 +384,45 @@ impl StartPane {
                     studio.notify(&error, true);
                 }
             }
-            StartMsg::SearchEdited(query) => self.query = query,
+            StartMsg::SearchEdited(query) => {
+                self.query = query;
+                self.page = 0;
+            }
             StartMsg::Sort(sort) => {
                 self.sort = if sort == SORT_NAME {
                     SORT_NAME
                 } else {
                     SORT_RECENT
                 };
+                self.page = 0;
             }
+            StartMsg::AssignCategory { path, category } => {
+                let mut cats = studio.categories.borrow_mut();
+                cats.assign(&path, &category);
+                cats.save(&studio.host.dirs.config);
+            }
+            StartMsg::CreateCategory { path, name } => {
+                let mut cats = studio.categories.borrow_mut();
+                if let Some(id) = cats.create(&name) {
+                    cats.assign(&path, &id);
+                    cats.save(&studio.host.dirs.config);
+                }
+            }
+            StartMsg::CategoryFilter(filter) => {
+                self.category = filter;
+                self.page = 0;
+            }
+            StartMsg::ViewMode(view) => {
+                self.view = if view == crate::project_categories::VIEW_LIST {
+                    crate::project_categories::VIEW_LIST
+                } else {
+                    crate::project_categories::VIEW_GRID
+                };
+                let mut cats = studio.categories.borrow_mut();
+                cats.view = self.view;
+                cats.save(&studio.host.dirs.config);
+            }
+            StartMsg::Page(page) => self.page = page.max(0) as usize,
             StartMsg::Link(name) => {
                 if name == "shortcuts" {
                     use crate::panes::settings::{SHORTCUTS_PAGE, SettingsMsg};
@@ -556,6 +635,13 @@ impl StartPane {
             dropped: self.dropped.len() as i32,
             query: self.query.as_str().into(),
             sort: self.sort,
+            category: self.category.as_str().into(),
+            category_title: slint::SharedString::default(),
+            view: self.view,
+            unassigned: 0,
+            page: 0,
+            pages: 1,
+            filtered_total: 0,
         }
     }
 }
@@ -632,17 +718,42 @@ mod tests {
                 .map(|recent| recent.info.name.clone())
                 .collect()
         };
+        let empty = crate::project_categories::Categories::default();
         assert_eq!(
-            names(shown(&list, "", SORT_RECENT)),
+            names(shown(&list, "", SORT_RECENT, "", &empty)),
             ["beach vlog", "Podcast 12", "Apple ad"]
         );
         assert_eq!(
-            names(shown(&list, "", SORT_NAME)),
+            names(shown(&list, "", SORT_NAME, "", &empty)),
             ["Apple ad", "beach vlog", "Podcast 12"]
         );
-        assert_eq!(names(shown(&list, "SUMMER", SORT_RECENT)), ["beach vlog"]);
-        assert_eq!(names(shown(&list, "pod 12", SORT_RECENT)), ["Podcast 12"]);
-        assert!(shown(&list, "nothing", SORT_RECENT).is_empty());
+        assert_eq!(
+            names(shown(&list, "SUMMER", SORT_RECENT, "", &empty)),
+            ["beach vlog"]
+        );
+        assert_eq!(
+            names(shown(&list, "pod 12", SORT_RECENT, "", &empty)),
+            ["Podcast 12"]
+        );
+        assert!(shown(&list, "nothing", SORT_RECENT, "", &empty).is_empty());
+
+        let mut cats = crate::project_categories::Categories::default();
+        let id = cats.create("Kajian").unwrap();
+        cats.assign("/v/pods/12", &id);
+        assert_eq!(
+            names(shown(&list, "", SORT_RECENT, &id, &cats)),
+            ["Podcast 12"]
+        );
+        assert_eq!(
+            names(shown(
+                &list,
+                "",
+                SORT_RECENT,
+                crate::project_categories::FILTER_NONE,
+                &cats
+            )),
+            ["beach vlog", "Apple ad"]
+        );
     }
 
     /// Every link the launch screen sends goes somewhere, and the release

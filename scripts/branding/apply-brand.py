@@ -79,10 +79,6 @@ EXPLICIT = {
         ('"clovercut-"', f'"{SLUG}-"'),
         ('-q", "clovercut"', f'-q", "{SLUG}"'),
     ],
-    "site/index.html": [
-        ("https://github.com/tulcoturo/clovercut", REPO_URL),
-        ("tulcoturo.github.io/clovercut", "hams-rmdhn.github.io/studio-inspirasi"),
-    ],
     ".github/workflows/build-app.yml": [
         ("app=Clovercut.app", f'app="{NAME}.app"'),
         ('"$app/Contents/MacOS/clovercut"', f'"$app/Contents/MacOS/{SLUG}"'),
@@ -145,7 +141,6 @@ GENERIC = [
     "src/crates/concat-host/src/route.rs",
     "src/crates/concat-host/src/session.rs",
     "src/crates/concat-host/src/updates.rs",
-    "site/index.html",
     "site/app.js",
 ]
 

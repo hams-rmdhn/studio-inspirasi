@@ -38,7 +38,9 @@ import { VoiceoverData, VoiceoverPanel } from "dialogs/voiceover.slint";
 import { DockDivider, DockSide, SeatBox } from "dock.slint";
 import { Editor } from "editor.slint";
 import { PaneKind, Panes } from "workspace/pane-switcher.slint";
-import { ChipOption, NewProjectDialog, RecentProjectData, StartData, StartScreen } from "start.slint";
+import {
+    CategoryData, ChipOption, NewProjectDialog, RecentProjectData, StartData, StartScreen,
+} from "start.slint";
 import { TitleBar } from "title-bar.slint";
 import { PhoneEditor } from "phone/editor.slint";
 import {
@@ -157,6 +159,8 @@ export component App inherits Window {
     in property <[ChipOption]> start-sizes;
     in property <[ChipOption]> start-rates;
     in property <[RecentProjectData]> recents;
+    /// The launch screen's categories, with each one's project count.
+    in property <[CategoryData]> categories;
 
     /// Put up the new-project sheet, and take it down again.
     callback start-compose();
@@ -179,6 +183,18 @@ export component App inherits Window {
     callback start-reveal-recent(path: string);
     callback start-search-edited(query: string);
     callback start-sort-changed(sort: int);
+    /// A project's category pick: an id, or "" for none.
+    callback start-assign-category(path: string, id: string);
+    /// The assign popup's last row: make a category named `name` and put
+    /// `path` in it.
+    callback start-create-category(path: string, name: string);
+    /// The sidebar's pick: an id, "" for everything, "__none__" for the
+    /// unassigned.
+    callback start-category-filter(id: string);
+    /// The launch screen's projects as posters or as rows.
+    callback start-view-mode(view: int);
+    /// The page bar's pick: a page of filtered projects, zero-based.
+    callback start-page-changed(page: int);
     /// One of the launch screen's links, by name; see `start::link`.
     callback start-link(name: string);
     callback start-dismiss-error();
@@ -219,6 +235,13 @@ export component App inherits Window {
     callback menu-opened(index: int);
     callback app-menu-selected(id: string);
 
+    /// The same three menus whole — File, Edit, View — for the macOS
+    /// menu bar the window gets while it is fullscreen, where the
+    /// strip's own labels hide. Empty off the Mac.
+    in property <[MenuItemData]> native-menu-file;
+    in property <[MenuItemData]> native-menu-edit;
+    in property <[MenuItemData]> native-menu-view;
+
     callback titlebar-begin-drag();
     callback titlebar-toggle-maximize();
     /// The strip's own window buttons, where the platform's decorations were
@@ -231,6 +254,10 @@ export component App inherits Window {
     /// Read back from the platform on every resize, so the strip can show
     /// restore rather than maximise - whichever route maximised it.
     in-out property <bool> window-maximized;
+    /// macOS's own fullscreen, read back on every resize like maximised:
+    /// the strip hides its menus behind a hover and takes its left inset
+    /// off, since the traffic lights are gone.
+    in-out property <bool> window-fullscreen;
     callback window-resized();
     changed width => { root.window-resized(); }
     // The height goes to the Panes global as well: the menus hung under the
@@ -608,6 +635,7 @@ export component App inherits Window {
             // carries the two verbs that are not.
             if !root.phone: TitleBar {
                 macos: root.macos;
+                fullscreen: root.window-fullscreen;
                 minimal: root.on-start;
                 deep: root.on-start;
                 project-name: root.project-name;
@@ -641,6 +669,11 @@ export component App inherits Window {
 
                 recents: root.recents;
                 recents-total: root.recents-total;
+                categories: root.categories;
+                category: root.start.category;
+                category-title: root.start.category-title;
+                view: root.start.view;
+                unassigned: root.start.unassigned;
                 query: root.start.query;
                 sort: root.start.sort;
                 busy: root.start.busy;
@@ -656,6 +689,14 @@ export component App inherits Window {
                 reveal-recent(path) => { root.start-reveal-recent(path); }
                 search-edited(query) => { root.start-search-edited(query); }
                 sort-changed(sort) => { root.start-sort-changed(sort); }
+                assign-category(path, id) => { root.start-assign-category(path, id); }
+                create-category(path, name) => { root.start-create-category(path, name); }
+                category-filter(id) => { root.start-category-filter(id); }
+                view-mode(view) => { root.start-view-mode(view); }
+                page: root.start.page;
+                pages: root.start.pages;
+                filtered-total: root.start.filtered-total;
+                page-changed(page) => { root.start-page-changed(page); }
                 link(name) => { root.start-link(name); }
             }
 
@@ -1021,6 +1062,50 @@ export component App inherits Window {
         dismissed => { root.confirm-dismissed(); }
     }
 
+
+    // The macOS menu bar: on the Mac the strip's File / Edit / View hide
+    // in fullscreen, and this puts the same menus in the system bar the
+    // pointer reveals at the top of the screen — where a Mac app keeps
+    // its menus anyway. Off the Mac and out of fullscreen it stays
+    // invisible: the strip's own labels do the job there, and a drawn
+    // bar would only say them twice. `visible` is tracked, so entering
+    // and leaving the fullscreen space installs and removes the menus.
+    MenuBar {
+        visible: root.macos && root.window-fullscreen;
+
+        Menu {
+            title: I18n.t("titleBar.file");
+            for item in root.native-menu-file: MenuItem {
+                title: item.label;
+                enabled: item.enabled;
+                checkable: item.checkable;
+                checked: item.checked;
+                activated => { root.app-menu-selected(item.id); }
+            }
+        }
+
+        Menu {
+            title: I18n.t("titleBar.edit");
+            for item in root.native-menu-edit: MenuItem {
+                title: item.label;
+                enabled: item.enabled;
+                checkable: item.checkable;
+                checked: item.checked;
+                activated => { root.app-menu-selected(item.id); }
+            }
+        }
+
+        Menu {
+            title: I18n.t("titleBar.view");
+            for item in root.native-menu-view: MenuItem {
+                title: item.label;
+                enabled: item.enabled;
+                checkable: item.checkable;
+                checked: item.checked;
+                activated => { root.app-menu-selected(item.id); }
+            }
+        }
+    }
 
     // Over the workspace and both sheets, under the menus. A tooltip has to
     // clear the pane it belongs to — panes clip — and it has no business over

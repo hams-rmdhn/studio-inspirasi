@@ -84,6 +84,42 @@ export struct MediaItemData {
     selected: bool,
 }
 
+/// One placeholder in a saved template: the media the project it makes
+/// stands it in for, and - once the fill sheet picked one - what it is.
+export struct SlotData {
+    media-id: string,
+    name: string,
+    kind: string,
+    /// "12.0s" - how much timeline the placeholder covers.
+    seconds: string,
+    /// The picked file's name; empty until one is.
+    fill: string,
+    /// Being probed on a worker.
+    pending: bool,
+}
+
+/// One saved template, as the gallery card draws it.
+export struct TemplateData {
+    /// The bundle folder.
+    path: string,
+    name: string,
+    /// "1080 × 1920 · 30 fps".
+    detail: string,
+    /// The bundle's poster frame; empty falls back to a slot mark.
+    poster: image,
+    slots: [SlotData],
+}
+
+/// The fill sheet over a slotted template, or `open: false` for none.
+export struct TemplateFillData {
+    open: bool,
+    /// The template's name, in the sheet's heading.
+    name: string,
+    /// Every slot has a fill.
+    can-create: bool,
+    slots: [SlotData],
+}
+
 // ── the page strip ───────────────────────────────────────────────────────────
 
 component LibraryTab inherits Rectangle {
@@ -1799,6 +1835,299 @@ export component ShapeGrid inherits Rectangle {
 // ── the pane ─────────────────────────────────────────────────────────────────
 
 // Centred placeholder for a page with nothing on it.
+// One template in the gallery: the poster frame, the name under it, and
+// what it is made of — with the two verbs a card carries out on hover.
+component TemplateCard inherits Rectangle {
+    in property <TemplateData> template;
+
+    callback used();
+    callback deleted();
+
+    border-radius: Theme.r;
+    border-width: 1px;
+    border-color: lit ? Theme.line-strong : Theme.line;
+    background: lit ? Theme.raised : Theme.panel;
+    clip: true;
+
+    property <bool> lit: touch.has-hover;
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.used(); }
+    }
+
+    poster := Rectangle {
+        x: 0;
+        y: 0;
+        width: parent.width;
+        height: self.width * 9 / 16;
+        background: Theme.well;
+        clip: true;
+
+        if root.template.poster.width > 0: Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.template.poster;
+            image-fit: cover;
+        }
+
+        if root.template.poster.width == 0: Icon {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            glyph: Glyph.slot;
+            size: 20px;
+            weight: 1.5;
+            tint: Theme.fg-dim;
+        }
+
+        // The verbs, over the poster's top-right on hover like the bin's.
+        if root.lit: Rectangle {
+            x: parent.width - self.width - 6px;
+            y: 6px;
+            width: 26px;
+            height: 26px;
+            border-radius: Theme.r-xs;
+            background: delete-touch.has-hover ? Theme.danger-soft : Theme.scrim;
+
+            Icon {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                glyph: Glyph.trash;
+                size: 13px;
+                tint: delete-touch.has-hover ? Theme.danger : Theme.on-scrim;
+            }
+
+            delete-touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.deleted(); }
+            }
+        }
+    }
+
+    Rectangle {
+        y: poster.height;
+        width: parent.width;
+        height: parent.height - poster.height;
+
+        VerticalLayout {
+            x: 10px;
+            width: parent.width - 20px;
+            padding-top: 8px;
+            spacing: 3px;
+            alignment: start;
+
+            Text {
+                text: root.template.name;
+                color: Theme.fg;
+                font-size: Theme.fs-lg;
+                font-weight: Theme.weight-title;
+                overflow: elide;
+            }
+
+            Text {
+                text: root.template.slots.length > 0
+                    ? root.template.detail + "  ·  " + root.template.slots.length + " " + I18n.t("mediaPane.slots")
+                    : root.template.detail;
+                color: Theme.fg-dim;
+                font-size: Theme.fs-sm;
+                overflow: elide;
+            }
+        }
+    }
+}
+
+// The saved templates as a grid — the same arithmetic as the bin's and
+// the launch screen's: Slint has no auto-fill grid.
+component TemplateGallery inherits Rectangle {
+    in property <[TemplateData]> templates;
+
+    callback used(path: string);
+    callback deleted(path: string);
+
+    property <length> gap: 8px;
+    property <length> min-card: 148px;
+    property <int> cols: Math.max(1,
+        Math.floor((root.width + root.gap) / (root.min-card + root.gap)));
+    property <length> card-w: (root.width - (root.cols - 1) * root.gap) / root.cols;
+    property <length> card-h: root.card-w * 9 / 16 + 54px;
+    property <int> rows: Math.ceil(root.templates.length / root.cols);
+
+    height: Math.max(0px, root.rows * (root.card-h + root.gap) - root.gap);
+
+    for template[index] in root.templates: TemplateCard {
+        x: Math.mod(index, root.cols) * (root.card-w + root.gap);
+        y: Math.floor(index / root.cols) * (root.card-h + root.gap);
+        width: root.card-w;
+        height: root.card-h;
+        template: template;
+        used => { root.used(template.path); }
+        deleted => { root.deleted(template.path); }
+    }
+}
+
+// The fill sheet over a template with placeholders: one row per slot —
+// its name, what it wants, and the file picked for it — then the verbs.
+component TemplateFillSheet inherits Rectangle {
+    in property <TemplateFillData> fill;
+
+    callback picked(media-id: string);
+    callback created();
+    callback cancelled();
+
+    background: Theme.scrim;
+
+    TouchArea {
+        // Swallow the press so it never reaches the page beneath.
+    }
+
+    sheet := Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: Math.min(460px, parent.width - 48px);
+        height: Math.min(self.preferred-height, parent.height - 48px);
+        border-radius: Theme.r-lg;
+        border-width: 1px;
+        border-color: Theme.line-strong;
+        background: Theme.raised;
+
+        VerticalLayout {
+            padding: 20px;
+            spacing: 14px;
+            alignment: start;
+
+            Text {
+                text: I18n.t1("mediaPane.fillSlotsFor", root.fill.name);
+                color: Theme.fg;
+                font-size: Theme.fs-xl;
+                font-weight: Theme.weight-title;
+            }
+
+            Text {
+                text: I18n.t("mediaPane.fillSlotsNote");
+                color: Theme.fg-dim;
+                font-size: Theme.fs;
+                wrap: word-wrap;
+            }
+
+            for slot in root.fill.slots: slot-row := Rectangle {
+                height: 52px;
+                border-radius: Theme.r;
+                border-width: 1px;
+                border-color: Theme.line;
+                background: Theme.panel;
+
+                HorizontalLayout {
+                    padding: 10px;
+                    spacing: 10px;
+
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        spacing: 2px;
+
+                        Text {
+                            text: slot.name;
+                            color: Theme.fg;
+                            font-size: Theme.fs;
+                            font-weight: Theme.weight-title;
+                            overflow: elide;
+                        }
+
+                        Text {
+                            text: slot.kind + "  ·  " + slot.seconds;
+                            color: Theme.fg-dim;
+                            font-size: Theme.fs-sm;
+                            overflow: elide;
+                        }
+                    }
+
+                    pick := Rectangle {
+                        width: Math.max(110px, pick-text.preferred-width + 24px);
+                        border-radius: Theme.r-sm;
+                        border-width: 1px;
+                        border-color: slot.fill != "" ? Theme.accent : Theme.line-strong;
+                        background: pick-touch.has-hover ? Theme.field : Colors.transparent;
+                        opacity: slot.pending ? 0.5 : 1.0;
+
+                        pick-text := Text {
+                            x: 12px;
+                            width: parent.width - 24px;
+                            height: parent.height;
+                            text: slot.pending ? I18n.t("mediaPane.probing")
+                                : slot.fill != "" ? slot.fill
+                                : I18n.t("mediaPane.chooseFile");
+                            color: slot.fill != "" ? Theme.fg : Theme.fg-dim;
+                            font-size: Theme.fs-sm;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+
+                        pick-touch := TouchArea {
+                            enabled: !slot.pending;
+                            mouse-cursor: pointer;
+                            clicked => { root.picked(slot.media-id); }
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 10px;
+                alignment: end;
+
+                cancel := Rectangle {
+                    width: 88px;
+                    height: 32px;
+                    border-radius: Theme.r-sm;
+                    border-width: 1px;
+                    border-color: Theme.line-strong;
+                    background: cancel-touch.has-hover ? Theme.field : Colors.transparent;
+
+                    Text {
+                        width: parent.width;
+                        height: parent.height;
+                        text: I18n.t("common.cancel");
+                        color: Theme.fg;
+                        font-size: Theme.fs;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    cancel-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.cancelled(); }
+                    }
+                }
+
+                create := Rectangle {
+                    width: 110px;
+                    height: 32px;
+                    border-radius: Theme.r-sm;
+                    background: root.fill.can-create ? Theme.accent : Theme.field;
+                    opacity: root.fill.can-create ? 1.0 : 0.5;
+
+                    Text {
+                        width: parent.width;
+                        height: parent.height;
+                        text: I18n.t("mediaPane.createProject");
+                        color: root.fill.can-create ? Theme.on-accent : Theme.fg-dim;
+                        font-size: Theme.fs;
+                        font-weight: Theme.weight-title;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    create-touch := TouchArea {
+                        enabled: root.fill.can-create;
+                        mouse-cursor: pointer;
+                        clicked => { root.created(); }
+                    }
+                }
+            }
+        }
+    }
+}
+
 component Empty inherits VerticalLayout {
     in property <Glyph> glyph;
     in property <string> text;
@@ -1902,6 +2231,17 @@ export component MediaPane inherits Rectangle {
     callback apply-audio(effect-id: string);
     /// Templates page: open the save-as-template flow for this project.
     callback save-template();
+    /// Templates page: the saved bundles the gallery shows.
+    in property <[TemplateData]> library-templates;
+    /// A gallery card's verb: make a project of this template.
+    callback template-use(path: string);
+    callback template-delete(path: string);
+    /// The fill sheet over a slotted template, or `open: false`.
+    in property <TemplateFillData> template-fill;
+    /// The sheet's per-slot verb: pick the placeholder's file.
+    callback template-fill-pick(media-id: string);
+    callback template-fill-create();
+    callback template-fill-cancel();
     /// Adjustments page: bring in `.cube` tables as looks of the user's own.
     callback import-lut();
     /// Adjustments page: lay an adjustment layer at the playhead, called
@@ -3075,11 +3415,34 @@ export component MediaPane inherits Rectangle {
                     }
                 }
 
-                if root.tab == 6: Empty {
+                if root.tab == 6 && root.library-templates.length == 0: Empty {
                     glyph: Glyph.slot;
                     text: I18n.t("mediaPane.noTemplatesYetMark");
                 }
+
+                if root.tab == 6 && root.library-templates.length > 0: VerticalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    padding-bottom: 8px;
+
+                    TemplateGallery {
+                        templates: root.library-templates;
+                        used(path) => { root.template-use(path); }
+                        deleted(path) => { root.template-delete(path); }
+                    }
+                }
             }
         }
+    }
+
+    // The slot-fill sheet, over the whole pane: a template with
+    // placeholders cannot become a project until each one has a file.
+    if root.template-fill.open: TemplateFillSheet {
+        width: parent.width;
+        height: parent.height;
+        fill: root.template-fill;
+        picked(media-id) => { root.template-fill-pick(media-id); }
+        created => { root.template-fill-create(); }
+        cancelled => { root.template-fill-cancel(); }
     }
 }

@@ -8,7 +8,9 @@ import {
 import {
     CurveData, CurveGroupData, WheelData, WheelGroupData,
 } from "inspector/grading.slint";
-import { MediaFilter, MediaItemData, TextPresetData } from "workspace/media-pane.slint";
+import {
+    MediaFilter, MediaItemData, SlotData, TemplateData, TemplateFillData, TextPresetData,
+} from "workspace/media-pane.slint";
 import { DockDivider, DockSide, SeatBox } from "dock.slint";
 import { PaneKind } from "workspace/pane-switcher.slint";
 import { MenuItemData } from "primitives/context-menu.slint";
@@ -134,6 +136,19 @@ export global Editor {
     in-out property <string> library-audition;
     callback library-apply-audio(effect-id: string);
     callback library-save-template();
+    /// The Templates page's gallery of saved bundles.
+    in-out property <[TemplateData]> library-templates;
+    /// A gallery card's verb: make a project of this template — straight
+    /// away for a bundle with no slots, through the fill sheet otherwise.
+    callback template-use(path: string);
+    callback template-delete(path: string);
+    /// The fill sheet over a slotted template, or `open: false`.
+    in-out property <TemplateFillData> template-fill;
+    /// The sheet's per-slot verb: pick the file that stands in for the
+    /// placeholder `media-id` names.
+    callback template-fill-pick(media-id: string);
+    callback template-fill-create();
+    callback template-fill-cancel();
     /// Adjustments page: import `.cube` tables as looks of the user's own,
     /// which its LUTs shelf lists.
     callback library-import-lut();
