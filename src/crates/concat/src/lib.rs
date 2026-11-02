@@ -65,7 +65,6 @@ mod panes;
 mod phase5_ui_walkthrough;
 mod prefs;
 mod presets;
-mod project_categories;
 mod preview_interaction;
 mod source;
 mod speed_ramp;
@@ -503,7 +502,6 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
         editor.set_seats(ModelRc::from(models.seats.clone()));
         editor.set_dividers(ModelRc::from(models.dividers.clone()));
         app.set_recents(ModelRc::from(models.recents.clone()));
-        app.set_categories(ModelRc::from(models.categories.clone()));
         editor.set_library_templates(ModelRc::from(models.library_templates.clone()));
         editor.set_text_presets(ModelRc::from(models.text_presets.clone()));
         editor.set_style_presets(ModelRc::from(models.style_presets.clone()));
@@ -683,25 +681,6 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
                 if app.get_window_maximized() != maximized {
                     app.set_window_maximized(maximized);
                 }
-                // The same signal covers macOS's own fullscreen: the
-                // strip's menus hide behind the title bar's hover there.
-                // Checked again after the space animation settles, since
-                // AppKit updates the monitor geometry mid-transition.
-                let fullscreen = platform::is_fullscreen(app.window());
-                if app.get_window_fullscreen() != fullscreen {
-                    app.set_window_fullscreen(fullscreen);
-                }
-                for delay in [250, 700] {
-                    let weak_settled = app.as_weak();
-                    slint::Timer::single_shot(std::time::Duration::from_millis(delay), move || {
-                        if let Some(app) = weak_settled.upgrade() {
-                            let fullscreen = platform::is_fullscreen(app.window());
-                            if app.get_window_fullscreen() != fullscreen {
-                                app.set_window_fullscreen(fullscreen);
-                            }
-                        }
-                    });
-                }
             }
         }
     });
@@ -808,21 +787,6 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
     }));
     app.on_start_sort_changed(on_window!(|state, sort: i32| {
         state.handle(Msg::Start(StartMsg::Sort(sort)));
-    }));
-    app.on_start_assign_category(on_window!(|state, path: SharedString, id: SharedString| {
-        state.handle(Msg::Start(StartMsg::AssignCategory {
-            path: path.to_string(),
-            category: id.to_string(),
-        }));
-    }));
-    app.on_start_create_category(on_window!(|state, path: SharedString, name: SharedString| {
-        state.handle(Msg::Start(StartMsg::CreateCategory {
-            path: path.to_string(),
-            name: name.to_string(),
-        }));
-    }));
-    app.on_start_category_filter(on_window!(|state, id: SharedString| {
-        state.handle(Msg::Start(StartMsg::CategoryFilter(id.to_string())));
     }));
     app.on_start_view_mode(on_window!(|state, view: i32| {
         state.handle(Msg::Start(StartMsg::ViewMode(view)));

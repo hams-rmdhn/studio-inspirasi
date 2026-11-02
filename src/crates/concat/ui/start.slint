@@ -104,21 +104,6 @@ export struct RecentProjectData {
     /// produced one. Empty falls back to a quiet film mark rather than an
     /// error: the launch screen is not the place to complain about footage.
     poster: image,
-    /// The category the card was put in, or empty. A Studio Inspirasi
-    /// overlay - upstream has no notion of one.
-    category: string,
-    category-colour: brush,
-}
-
-/// One named group in the launch screen's categories sidebar.
-export struct CategoryData {
-    /// The store's stable key for it.
-    id: string,
-    name: string,
-    /// Its dot, from the brand ladder.
-    colour: brush,
-    /// How many of the recents carry it.
-    count: int,
 }
 
 /// The form, as one struct — the same shape the other sheets use, and for
@@ -168,25 +153,16 @@ export struct StartData {
     /// recent first, 1 by name.
     query: string,
     sort: int,
-    /// The category the grid is limited to: "" for all of them,
-    /// "__none__" for the unassigned ones.
-    category: string,
-    /// The heading the projects section wears when narrowed to a
-    /// category; empty uses the default "Recent projects".
-    category-title: string,
     /// Posters or rows: 0 the grid, 1 the list.
     view: int,
-    /// How many of the recents carry no category, for the sidebar's
-    /// "Uncategorised" count.
-    unassigned: int,
     /// The page of filtered projects the grid and the list are on,
     /// zero-based, and how many pages the filter left: the slice in
     /// `recents` is page `page` of `pages`, eighteen to a page.
     page: int,
     pages: int,
-    /// How many projects the search, sort and category left, before the
-    /// page's own slice — what the page bar counts from and the section
-    /// head's badge reports once the grid is paged.
+    /// How many projects the search and sort left, before the page's
+    /// own slice — what the page bar counts from and the section head's
+    /// badge reports once the grid is paged.
     filtered-total: int,
 }
 
@@ -921,262 +897,6 @@ component PosterAction inherits Rectangle {
     }
 }
 
-// A category's name with its dot: the badge under a card's name, and the
-// mark beside a row's.
-component CategoryBadge inherits Rectangle {
-    in property <string> name;
-    in property <brush> colour;
-
-    height: badge-text.preferred-height;
-    width: dot.width + 6px + badge-text.preferred-width;
-
-    dot := Rectangle {
-        x: 0;
-        y: (parent.height - self.height) / 2;
-        width: 7px;
-        height: 7px;
-        border-radius: 3.5px;
-        background: root.colour;
-    }
-
-    badge-text := Text {
-        x: dot.width + 6px;
-        text: root.name;
-        color: Theme.fg-dim;
-        font-size: Theme.fs-sm;
-        vertical-alignment: center;
-    }
-}
-
-// The pick a card's tag puts up: every category, a row for none, and a
-// name for a new one at the foot. A PopupWindow can only be placed from
-// inside the component that owns it, so the tag bumps `token` after
-// naming where it pressed, the way ContextMenu opens.
-component CategoryMenu inherits Rectangle {
-    in property <[CategoryData]> categories;
-    callback assigned(id: string);
-    callback created(name: string);
-
-    /// Where the tag was pressed, in window coordinates.
-    in property <length> request-x;
-    in property <length> request-y;
-    /// Bumped to open; a number rather than a flag so the same card can
-    /// ask twice.
-    in property <int> token;
-
-    /// The foot row is a field once "New category" is picked.
-    property <bool> typing: false;
-    /// One action row, for the sum a model cannot loop to.
-    property <length> row-h: 30px;
-    property <length> foot-h: root.typing ? 36px : root.row-h;
-    property <length> at-x;
-    property <length> at-y;
-
-    changed token => {
-        if (root.token > 0) {
-            root.typing = false;
-            root.at-x = root.request-x;
-            root.at-y = root.request-y;
-            surface.show();
-        }
-    }
-
-    surface := PopupWindow {
-        x: root.at-x;
-        y: root.at-y;
-        width: 230px;
-        height: (root.categories.length + 1) * root.row-h + root.foot-h
-            + 9px + (root.categories.length > 0 ? 9px : 0px)
-            + (root.categories.length + 3) * 2px + 16px;
-        close-policy: close-on-click-outside;
-
-        Rectangle {
-            width: parent.width;
-            height: parent.height;
-        background: Theme.raised;
-        border-width: 1px;
-        border-color: Theme.line-strong;
-        border-radius: Theme.r-lg;
-        clip: true;
-
-        VerticalLayout {
-            padding: 7px;
-            padding-bottom: 6px;
-            spacing: 2px;
-            alignment: start;
-
-            // Off any category: first, the way a menu's "no" leads.
-            none-row := Rectangle {
-                height: root.row-h;
-                border-radius: Theme.r-xs;
-                background: none-touch.has-hover ? Theme.field : Colors.transparent;
-
-                HorizontalLayout {
-                    padding-left: 10px;
-                    padding-right: 10px;
-                    spacing: 8px;
-
-                    VerticalLayout {
-                        alignment: center;
-                        Icon {
-                            glyph: Glyph.close;
-                            size: 11px;
-                            weight: 1.9;
-                            tint: Theme.fg-dim;
-                        }
-                    }
-
-                    Text {
-                        horizontal-stretch: 1;
-                        text: I18n.t("start.uncategorized");
-                        color: Theme.fg;
-                        font-size: Theme.fs;
-                        vertical-alignment: center;
-                        overflow: elide;
-                    }
-                }
-
-                none-touch := TouchArea {
-                    mouse-cursor: pointer;
-                    clicked => {
-                        root.assigned("");
-                        cat-surface-close();
-                    }
-                }
-            }
-
-            if root.categories.length > 0: Rectangle {
-                height: 9px;
-                Rectangle {
-                    x: 8px;
-                    y: 4px;
-                    width: parent.width - 16px;
-                    height: 1px;
-                    background: Theme.line;
-                }
-            }
-
-            for category in root.categories: cat-row := Rectangle {
-                height: root.row-h;
-                border-radius: Theme.r-xs;
-                background: cat-touch.has-hover ? Theme.field : Colors.transparent;
-
-                HorizontalLayout {
-                    padding-left: 10px;
-                    padding-right: 10px;
-                    spacing: 8px;
-
-                    VerticalLayout {
-                        alignment: center;
-                        Rectangle {
-                            width: 8px;
-                            height: 8px;
-                            border-radius: 4px;
-                            background: category.colour;
-                        }
-                    }
-
-                    Text {
-                        horizontal-stretch: 1;
-                        text: category.name;
-                        color: Theme.fg;
-                        font-size: Theme.fs;
-                        vertical-alignment: center;
-                        overflow: elide;
-                    }
-                }
-
-                cat-touch := TouchArea {
-                    mouse-cursor: pointer;
-                    clicked => {
-                        root.assigned(category.id);
-                        cat-surface-close();
-                    }
-                }
-            }
-
-            Rectangle {
-                height: 9px;
-                Rectangle {
-                    x: 8px;
-                    y: 4px;
-                    width: parent.width - 16px;
-                    height: 1px;
-                    background: Theme.line;
-                }
-            }
-
-            // The foot: "New category" as a row, a field once it is.
-            // One element in the layout either way, so `name-input` stays
-            // mounted and no extra spacing is added.
-            foot-row := Rectangle {
-                height: root.foot-h;
-                border-radius: Theme.r-xs;
-                border-width: root.typing ? 1px : 0px;
-                border-color: Theme.line;
-                background: root.typing ? Theme.field
-                    : new-touch.has-hover ? Theme.field : Colors.transparent;
-                clip: true;
-
-                if !root.typing: HorizontalLayout {
-                    padding-left: 10px;
-                    padding-right: 10px;
-                    spacing: 8px;
-
-                    VerticalLayout {
-                        alignment: center;
-                        Icon {
-                            glyph: Glyph.plus;
-                            size: 11px;
-                            weight: 1.9;
-                            tint: Theme.fg-dim;
-                        }
-                    }
-
-                    Text {
-                        horizontal-stretch: 1;
-                        text: I18n.t("start.newCategory");
-                        color: Theme.fg;
-                        font-size: Theme.fs;
-                        vertical-alignment: center;
-                        overflow: elide;
-                    }
-                }
-
-                new-touch := TouchArea {
-                    enabled: !root.typing;
-                    mouse-cursor: pointer;
-                    clicked => {
-                        root.typing = true;
-                        name-input.focus();
-                    }
-                }
-
-                name-input := TextInput {
-                    visible: root.typing;
-                    x: 10px;
-                    width: parent.width - 20px;
-                    height: parent.height;
-                    color: Theme.fg;
-                    font-size: Theme.fs;
-                    vertical-alignment: center;
-                    accepted => {
-                        if (self.text != "") {
-                            root.created(self.text);
-                        }
-                        cat-surface-close();
-                    }
-                }
-            }
-        }
-        }
-    }
-
-    // Closing from inside a row, the way ContextMenu's rows do.
-    function cat-surface-close() {
-        surface.close();
-    }
-}
 // One project: its poster, inset in the card like a print on a mount, its
 // running time over the poster's corner, and its name and what it is
 // under it. Show in folder and Remove come up over the poster on hover - or
@@ -1188,17 +908,10 @@ component PosterCard inherits Pressable {
     in property <bool> touchy;
     /// Show in folder: a desk's, which has a file manager to show it in.
     in property <bool> can-reveal;
-    /// The categories the tag's pick offers.
-    in property <[CategoryData]> categories;
 
     callback opened();
     callback forgotten();
     callback revealed();
-    /// The tag's pick was made: a category id, or "" for none.
-    callback assigned(id: string);
-    /// "New category" in the pick: make one called `name`, put the card
-    /// in it.
-    callback created(name: string);
 
     property <length> inset: 6px;
     property <bool> actions: root.touchy || root.lit || root.ring || root.project.missing;
@@ -1294,20 +1007,6 @@ component PosterCard inherits Pressable {
                 clicked => { root.revealed(); }
             }
 
-            if !root.project.missing: tag-action := PosterAction {
-                glyph: Glyph.tag;
-                label: I18n.t("start.assignCategory");
-                clicked => {
-                    cat-menu.request-x = Math.max(
-                        4px,
-                        (tag-action.absolute-position.x - root.absolute-position.x)
-                            + tag-action.width - 230px);
-                    cat-menu.request-y = (tag-action.absolute-position.y - root.absolute-position.y)
-                        + tag-action.height + 4px;
-                    cat-menu.token += 1;
-                }
-            }
-
             PosterAction {
                 glyph: Glyph.close;
                 label: I18n.t("start.removeFromList");
@@ -1340,17 +1039,6 @@ component PosterCard inherits Pressable {
             font-size: Theme.fs-sm;
             overflow: elide;
         }
-
-        if root.project.category != "": CategoryBadge {
-            name: root.project.category;
-            colour: root.project.category-colour;
-        }
-    }
-
-    cat-menu := CategoryMenu {
-        categories: root.categories;
-        assigned(id) => { root.assigned(id); }
-        created(name) => { root.created(name); }
     }
 }
 
@@ -1362,7 +1050,6 @@ component PosterCard inherits Pressable {
 // workspace/media-pane.slint.
 component ProjectsGrid inherits Rectangle {
     in property <[RecentProjectData]> recents;
-    in property <[CategoryData]> categories;
     in property <bool> enabled: true;
     in property <bool> touchy;
     in property <bool> can-reveal;
@@ -1370,19 +1057,14 @@ component ProjectsGrid inherits Rectangle {
     callback opened(path: string);
     callback forgotten(path: string);
     callback revealed(path: string);
-    callback assigned(path: string, id: string);
-    callback created(path: string, name: string);
 
     property <length> gap: 16px;
     property <length> min-card: 220px;
     property <int> cols: Math.max(1,
         Math.floor((root.width + root.gap) / (root.min-card + root.gap)));
     property <length> card-w: (root.width - (root.cols - 1) * root.gap) / root.cols;
-    /// The inset poster, and the name and the line under it — plus a
-    /// third line when categories are in play, so a badge never crowds
-    /// the card's bottom border.
-    property <length> card-h: (root.card-w - 12px) * 9 / 16
-        + (root.categories.length > 0 ? 88px : 70px);
+    /// The inset poster, and the name and the line under it.
+    property <length> card-h: (root.card-w - 12px) * 9 / 16 + 70px;
     property <int> rows: Math.ceil(root.recents.length / root.cols);
 
     height: Math.max(0px, root.rows * (root.card-h + root.gap) - root.gap);
@@ -1396,12 +1078,9 @@ component ProjectsGrid inherits Rectangle {
         enabled: root.enabled;
         touchy: root.touchy;
         can-reveal: root.can-reveal;
-        categories: root.categories;
         opened => { root.opened(project.path); }
         forgotten => { root.forgotten(project.path); }
         revealed => { root.revealed(project.path); }
-        assigned(id) => { root.assigned(project.path, id); }
-        created(name) => { root.created(project.path, name); }
     }
 }
 
@@ -1410,16 +1089,13 @@ component ProjectsGrid inherits Rectangle {
 // start, the name and what it is beside it, Remove at the end.
 component ProjectRow inherits Pressable {
     in property <RecentProjectData> project;
-    /// The desk's row has room beside the cross for the two verbs the
-    /// narrow page has nowhere to put.
+    /// The desk's row has room beside the cross for the verb the narrow
+    /// page has nowhere to put.
     in property <bool> with-actions;
-    in property <[CategoryData]> categories;
 
     callback opened();
     callback forgotten();
     callback revealed();
-    callback assigned(id: string);
-    callback created(name: string);
 
     label: root.project.name;
     radius: Theme.r;
@@ -1489,30 +1165,21 @@ component ProjectRow inherits Pressable {
                 overflow: elide;
             }
 
-            HorizontalLayout {
-                spacing: 8px;
-
-                Text {
-                    text: root.project.missing ? I18n.t("start.folderNotFound")
-                        : root.project.when + "  ·  " + root.project.detail;
-                    color: Theme.fg-dim;
-                    font-size: Theme.fs-sm;
-                    overflow: elide;
-                }
-
-                if root.project.category != "": CategoryBadge {
-                    name: root.project.category;
-                    colour: root.project.category-colour;
-                }
+            Text {
+                text: root.project.missing ? I18n.t("start.folderNotFound")
+                    : root.project.when + "  ·  " + root.project.detail;
+                color: Theme.fg-dim;
+                font-size: Theme.fs-sm;
+                overflow: elide;
             }
         }
 
         // A thumb's target, though the cross is small: the whole square
-        // at the row's end takes the press. On the desk the tag and the
-        // folder come out on hover in front of it — all three in the one
-        // row, so no verb ever parks on another.
+        // at the row's end takes the press. On the desk the folder comes
+        // out on hover in front of it — both in the one row, so no verb
+        // ever parks on another.
         Rectangle {
-            width: root.with-actions && root.lit ? 120px : 44px;
+            width: root.with-actions && root.lit ? 80px : 44px;
 
             HorizontalLayout {
                 padding-right: 4px;
@@ -1538,33 +1205,6 @@ component ProjectRow inherits Pressable {
                     }
                 }
 
-                if root.with-actions && !root.project.missing && root.lit: row-tag := Rectangle {
-                    width: 36px;
-                    border-radius: Theme.r-xs;
-                    background: tag-touch.has-hover ? Theme.field : Colors.transparent;
-
-                    Icon {
-                        x: (parent.width - self.width) / 2;
-                        y: (parent.height - self.height) / 2;
-                        glyph: Glyph.tag;
-                        size: 14px;
-                        tint: Theme.fg-dim;
-                    }
-
-                    tag-touch := TouchArea {
-                        mouse-cursor: pointer;
-                        clicked => {
-                            cat-row-menu.request-x = Math.max(
-                                4px,
-                                (row-tag.absolute-position.x - root.absolute-position.x)
-                                    + row-tag.width - 230px);
-                            cat-row-menu.request-y = (row-tag.absolute-position.y - root.absolute-position.y)
-                                + row-tag.height + 4px;
-                            cat-row-menu.token += 1;
-                        }
-                    }
-                }
-
                 row-forget := Rectangle {
                     width: 36px;
                     border-radius: Theme.r-xs;
@@ -1586,175 +1226,10 @@ component ProjectRow inherits Pressable {
             }
         }
     }
-
-    cat-row-menu := CategoryMenu {
-        categories: root.categories;
-        assigned(id) => { root.assigned(id); }
-        created(name) => { root.created(name); }
-    }
 }
 
-
-// The categories' column beside the projects: a heading, "All", each
-// named one with its count, and the unassigned pool at the foot. Drawn
-// only when there is at least one category to group by.
-component CategorySidebar inherits Rectangle {
-    in property <[CategoryData]> categories;
-    in property <string> current;
-    /// recents-total, for the count "All" carries.
-    in property <int> total;
-    /// How many carry no category; the foot row hides at zero.
-    in property <int> unassigned;
-
-    callback filtered(id: string);
-
-    VerticalLayout {
-        padding-top: 2px;
-        spacing: 2px;
-        alignment: start;
-
-        Text {
-            height: 26px;
-            text: I18n.t("start.categories");
-            color: Theme.fg-dim;
-            font-size: Theme.fs-sm;
-            letter-spacing: 0.72px;
-            vertical-alignment: bottom;
-        }
-
-        cat-all := Rectangle {
-            height: 30px;
-            border-radius: Theme.r-xs;
-            background: root.current == "" ? Theme.field
-                : all-touch.has-hover ? Theme.launch-well : Colors.transparent;
-
-            HorizontalLayout {
-                padding-left: 10px;
-                padding-right: 10px;
-                spacing: 8px;
-
-                Text {
-                    horizontal-stretch: 1;
-                    text: I18n.t("start.allProjects");
-                    color: root.current == "" ? Theme.fg : Theme.fg-muted;
-                    font-size: Theme.fs;
-                    font-weight: root.current == "" ? Theme.weight-title : 400;
-                    vertical-alignment: center;
-                    overflow: elide;
-                }
-
-                Text {
-                    text: "\{root.total}";
-                    color: Theme.fg-dim;
-                    font-family: Theme.font-technical;
-                    font-size: Theme.fs-sm;
-                    vertical-alignment: center;
-                }
-            }
-
-            all-touch := TouchArea {
-                mouse-cursor: pointer;
-                clicked => { root.filtered(""); }
-            }
-        }
-
-        for category in root.categories: cat-item := Rectangle {
-            height: 30px;
-            border-radius: Theme.r-xs;
-            background: root.current == category.id ? Theme.field
-                : item-touch.has-hover ? Theme.launch-well : Colors.transparent;
-
-            HorizontalLayout {
-                padding-left: 10px;
-                padding-right: 10px;
-                spacing: 8px;
-
-                VerticalLayout {
-                    alignment: center;
-                    Rectangle {
-                        width: 8px;
-                        height: 8px;
-                        border-radius: 4px;
-                        background: category.colour;
-                    }
-                }
-
-                Text {
-                    horizontal-stretch: 1;
-                    text: category.name;
-                    color: root.current == category.id ? Theme.fg : Theme.fg-muted;
-                    font-size: Theme.fs;
-                    font-weight: root.current == category.id ? Theme.weight-title : 400;
-                    vertical-alignment: center;
-                    overflow: elide;
-                }
-
-                Text {
-                    text: "\{category.count}";
-                    color: Theme.fg-dim;
-                    font-family: Theme.font-technical;
-                    font-size: Theme.fs-sm;
-                    vertical-alignment: center;
-                }
-            }
-
-            item-touch := TouchArea {
-                mouse-cursor: pointer;
-                clicked => { root.filtered(category.id); }
-            }
-        }
-
-        if root.unassigned > 0: cat-none := Rectangle {
-            height: 30px;
-            border-radius: Theme.r-xs;
-            background: root.current == "__none__" ? Theme.field
-                : unc-touch.has-hover ? Theme.launch-well : Colors.transparent;
-
-            HorizontalLayout {
-                padding-left: 10px;
-                padding-right: 10px;
-                spacing: 8px;
-
-                VerticalLayout {
-                    alignment: center;
-                    Rectangle {
-                        width: 8px;
-                        height: 8px;
-                        border-radius: 4px;
-                        border-width: 1px;
-                        border-color: Theme.line-strong;
-                        background: Colors.transparent;
-                    }
-                }
-
-                Text {
-                    horizontal-stretch: 1;
-                    text: I18n.t("start.uncategorized");
-                    color: root.current == "__none__" ? Theme.fg : Theme.fg-muted;
-                    font-size: Theme.fs;
-                    font-weight: root.current == "__none__" ? Theme.weight-title : 400;
-                    vertical-alignment: center;
-                    overflow: elide;
-                }
-
-                Text {
-                    text: "\{root.unassigned}";
-                    color: Theme.fg-dim;
-                    font-family: Theme.font-technical;
-                    font-size: Theme.fs-sm;
-                    vertical-alignment: center;
-                }
-            }
-
-            unc-touch := TouchArea {
-                mouse-cursor: pointer;
-                clicked => { root.filtered("__none__"); }
-            }
-        }
-    }
-}
-
-// The grid/list pick beside the sort: two small squares, one glyph each.
+// The desk's list/grid switch beside the sort control: rows read line
+// by line where a long list is skimmed, posters where it is browsed.
 component ViewToggle inherits Rectangle {
     in property <int> view;
     callback picked(view: int);
@@ -1808,19 +1283,16 @@ component ViewToggle inherits Rectangle {
 }
 
 // The projects as a column of rows — the wide page's list view, where a
-// hundred-entry category reads line by line. Same row as the narrow
-// page's, with the desk's extra verbs beside it.
+// long list reads line by line. Same row as the narrow page's, with the
+// desk's extra verbs beside it.
 component ProjectsList inherits Rectangle {
     in property <[RecentProjectData]> recents;
-    in property <[CategoryData]> categories;
     in property <bool> enabled: true;
     in property <bool> can-reveal;
 
     callback opened(path: string);
     callback forgotten(path: string);
     callback revealed(path: string);
-    callback assigned(path: string, id: string);
-    callback created(path: string, name: string);
 
     property <length> row-h: 68px;
     property <length> gap: 2px;
@@ -1831,13 +1303,10 @@ component ProjectsList inherits Rectangle {
         y: index * (root.row-h + root.gap);
         width: root.width;
         project: project;
-        categories: root.categories;
         with-actions: true;
         opened => { root.opened(project.path); }
         forgotten => { root.forgotten(project.path); }
         revealed => { root.revealed(project.path); }
-        assigned(id) => { root.assigned(project.path, id); }
-        created(name) => { root.created(project.path, name); }
     }
 }
 
@@ -2381,15 +1850,8 @@ component LearnGrid inherits Rectangle {
 component WideHome inherits Rectangle {
     in property <[RecentProjectData]> recents;
     in property <int> recents-total;
-    /// The categories the sidebar lists and the cards' tag offers.
-    in property <[CategoryData]> categories;
-    /// The sidebar's active filter: "" all, "__none__" the unassigned.
-    in property <string> category;
-    in property <string> category-title;
     /// Posters or rows: 0 the grid, 1 the list.
     in property <int> view;
-    /// How many of the recents carry no category.
-    in property <int> unassigned;
     in property <string> query;
     in property <int> sort;
     in property <bool> busy;
@@ -2403,9 +1865,6 @@ component WideHome inherits Rectangle {
     callback reveal-recent(path: string);
     callback search-edited(query: string);
     callback sort-changed(sort: int);
-    callback assign-category(path: string, id: string);
-    callback create-category(path: string, name: string);
-    callback category-filter(id: string);
     callback view-mode(view: int);
     callback link(name: string);
     /// The page bar's pick, zero-based.
@@ -2414,7 +1873,7 @@ component WideHome inherits Rectangle {
     /// The page of filtered projects being shown, zero-based.
     in property <int> page;
     in property <int> pages;
-    /// How many the search, sort and category left before the slice.
+    /// How many the search and sort left before the page's slice.
     in property <int> filtered-total;
 
     /// The margin the page keeps from the window's edges.
@@ -2434,9 +1893,6 @@ component WideHome inherits Rectangle {
     /// longer line on one tile does not shoulder the others aside.
     property <length> tile-unit: (root.main-w - (root.drop-tile ? 2 : 1) * 14px)
         / (root.drop-tile ? 3.3 : 2.3);
-    property <length> sidebar-w: root.categories.length > 0 ? 156px : 0px;
-    property <length> sidebar-gap: root.categories.length > 0 ? 24px : 0px;
-    property <length> projects-w: root.main-w - root.sidebar-w - root.sidebar-gap;
     property <bool> searchable: root.recents-total > 8;
 
     flick := Flickable {
@@ -2538,117 +1994,78 @@ component WideHome inherits Rectangle {
                 Rectangle { height: 44px; }
 
                 // ── the projects ─────────────────────────────────────
-                // A column of categories sits beside them once there is
-                // one; without any the section keeps its old full width.
-                HorizontalLayout {
-                    width: root.main-w;
-                    spacing: root.sidebar-gap;
+                SectionHead {
+                    height: 34px;
+                    text: I18n.t("start.recentProjects");
+                    count: root.query != "" ? "\{root.filtered-total}"
+                        : root.recents-total > 0 ? "\{root.recents-total}" : "";
 
-                    if root.categories.length > 0: VerticalLayout {
-                        width: root.sidebar-w;
-                        alignment: start;
+                    // Past a page of them: by the time there are more
+                    // than a screen holds, the eye is not a search.
+                    if root.searchable: SearchField {
+                        width: Math.min(260px, root.main-w * 0.32);
+                        text: root.query;
+                        placeholder: I18n.t("start.searchProjects");
+                        edited(text) => { root.search-edited(text); }
+                    }
 
-                        CategorySidebar {
-                            categories: root.categories;
-                            current: root.category;
-                            total: root.recents-total;
-                            unassigned: root.unassigned;
-                            filtered(id) => { root.category-filter(id); }
+                    if root.searchable: VerticalLayout {
+                        alignment: center;
+                        SegmentedControl {
+                            width: 156px;
+                            options: [I18n.t("start.sortRecent"), I18n.t("start.sortName")];
+                            current: root.sort;
+                            changed(index) => { root.sort-changed(index); }
                         }
                     }
 
-                    VerticalLayout {
-                        width: root.projects-w;
-                        alignment: start;
-
-                        SectionHead {
-                            width: root.projects-w;
-                            height: 34px;
-                            text: root.category-title != ""
-                                ? root.category-title
-                                : I18n.t("start.recentProjects");
-                            count: (root.category != "" || root.query != "")
-                                ? "\{root.filtered-total}"
-                                : root.recents-total > 0 ? "\{root.recents-total}" : "";
-
-                            // Past a page of them: by the time there are more
-                            // than a screen holds, the eye is not a search.
-                            if root.searchable: SearchField {
-                                width: Math.max(116px, Math.min(220px, root.projects-w - 390px));
-                                text: root.query;
-                                placeholder: I18n.t("start.searchProjects");
-                                edited(text) => { root.search-edited(text); }
-                            }
-
-                            if root.searchable: VerticalLayout {
-                                alignment: center;
-                                SegmentedControl {
-                                    width: 132px;
-                                    options: [I18n.t("start.sortRecent"), I18n.t("start.sortName")];
-                                    current: root.sort;
-                                    changed(index) => { root.sort-changed(index); }
-                                }
-                            }
-
-                            if root.recents-total > 0: VerticalLayout {
-                                alignment: center;
-                                ViewToggle {
-                                    view: root.view;
-                                    picked(view) => { root.view-mode(view); }
-                                }
-                            }
+                    if root.recents-total > 0: VerticalLayout {
+                        alignment: center;
+                        ViewToggle {
+                            view: root.view;
+                            picked(view) => { root.view-mode(view); }
                         }
+                    }
+                }
 
-                        Rectangle { height: 16px; }
+                Rectangle { height: 16px; }
 
-                        if root.recents-total == 0: EmptyProjects {
-                            first-edit => { root.link("first-edit"); }
-                        }
+                if root.recents-total == 0: EmptyProjects {
+                    first-edit => { root.link("first-edit"); }
+                }
 
-                        if root.recents-total > 0 && root.recents.length == 0: Text {
-                            text: root.query != ""
-                                ? I18n.t1("start.noMatches", root.query)
-                                : I18n.t("start.noProjectsYet");
-                            color: Theme.fg-muted;
-                            font-size: Theme.fs-lg;
-                            wrap: word-wrap;
-                        }
+                if root.recents-total > 0 && root.recents.length == 0: Text {
+                    text: I18n.t1("start.noMatches", root.query);
+                    color: Theme.fg-muted;
+                    font-size: Theme.fs-lg;
+                    wrap: word-wrap;
+                }
 
-                        if root.view == 0: ProjectsGrid {
-                            width: root.projects-w;
-                            recents: root.recents;
-                            categories: root.categories;
-                            enabled: !root.busy;
-                            can-reveal: true;
-                            opened(path) => { root.open-recent(path); }
-                            forgotten(path) => { root.forget-recent(path); }
-                            revealed(path) => { root.reveal-recent(path); }
-                            assigned(path, id) => { root.assign-category(path, id); }
-                            created(path, name) => { root.create-category(path, name); }
-                        }
+                if root.view == 0: ProjectsGrid {
+                    recents: root.recents;
+                    enabled: !root.busy;
+                    can-reveal: true;
+                    opened(path) => { root.open-recent(path); }
+                    forgotten(path) => { root.forget-recent(path); }
+                    revealed(path) => { root.reveal-recent(path); }
+                }
 
-                        if root.view == 1: ProjectsList {
-                            width: root.projects-w;
-                            recents: root.recents;
-                            categories: root.categories;
-                            enabled: !root.busy;
-                            can-reveal: true;
-                            opened(path) => { root.open-recent(path); }
-                            forgotten(path) => { root.forget-recent(path); }
-                            revealed(path) => { root.reveal-recent(path); }
-                            assigned(path, id) => { root.assign-category(path, id); }
-                            created(path, name) => { root.create-category(path, name); }
-                        }
+                if root.view == 1: ProjectsList {
+                    recents: root.recents;
+                    enabled: !root.busy;
+                    can-reveal: true;
+                    opened(path) => { root.open-recent(path); }
+                    forgotten(path) => { root.forget-recent(path); }
+                    revealed(path) => { root.reveal-recent(path); }
+                }
 
-                        if root.pages > 1: VerticalLayout {
-                            padding-top: 16px;
-                            PaginationBar {
-                                page: root.page;
-                                pages: root.pages;
-                                total: root.filtered-total;
-                                picked(page) => { root.page-changed(page); }
-                            }
-                        }
+                if root.pages > 1: VerticalLayout {
+                    padding-top: 16px;
+                    PaginationBar {
+                        page: root.page;
+                        pages: root.pages;
+                        total: root.filtered-total;
+                        picked(page) => { root.page-changed(page); }
                     }
                 }
 
@@ -2957,15 +2374,8 @@ export component StartScreen inherits Rectangle {
     in property <[RecentProjectData]> recents;
     /// How many there are before the search.
     in property <int> recents-total;
-    /// The categories the sidebar lists and the cards' tag offers.
-    in property <[CategoryData]> categories;
-    /// The sidebar's active filter: "" all, "__none__" the unassigned.
-    in property <string> category;
-    in property <string> category-title;
     /// Posters or rows: 0 the grid, 1 the list.
     in property <int> view;
-    /// How many of the recents carry no category.
-    in property <int> unassigned;
     in property <string> query;
     in property <int> sort;
     /// A project is being made: every verb on the page waits for it.
@@ -2986,12 +2396,6 @@ export component StartScreen inherits Rectangle {
     callback open-settings();
     callback search-edited(query: string);
     callback sort-changed(sort: int);
-    /// The tag on a card: put its project in the category named, or none.
-    callback assign-category(path: string, id: string);
-    callback create-category(path: string, name: string);
-    /// The sidebar's pick: an id, "" for everything, "__none__" for the
-    /// unassigned.
-    callback category-filter(id: string);
     /// The projects as posters or as rows.
     callback view-mode(view: int);
     /// One of the page's links, by name; see `start::link` in Rust.
@@ -3002,7 +2406,7 @@ export component StartScreen inherits Rectangle {
     /// The page of filtered projects being shown, zero-based.
     in property <int> page;
     in property <int> pages;
-    /// How many the search, sort and category left before the slice.
+    /// How many the search and sort left before the slice.
     in property <int> filtered-total;
 
     property <bool> narrow: root.phone || root.width < 680px;
@@ -3015,11 +2419,7 @@ export component StartScreen inherits Rectangle {
         height: root.height;
         recents: root.recents;
         recents-total: root.recents-total;
-        categories: root.categories;
-        category: root.category;
-        category-title: root.category-title;
         view: root.view;
-        unassigned: root.unassigned;
         query: root.query;
         sort: root.sort;
         busy: root.busy;
@@ -3032,9 +2432,6 @@ export component StartScreen inherits Rectangle {
         reveal-recent(path) => { root.reveal-recent(path); }
         search-edited(query) => { root.search-edited(query); }
         sort-changed(sort) => { root.sort-changed(sort); }
-        assign-category(path, id) => { root.assign-category(path, id); }
-        create-category(path, name) => { root.create-category(path, name); }
-        category-filter(id) => { root.category-filter(id); }
         view-mode(view) => { root.view-mode(view); }
         link(name) => { root.link(name); }
         page: root.page;

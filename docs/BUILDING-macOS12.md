@@ -115,38 +115,32 @@ Attribution is kept as required by AGPL-3.0 and `TRADEMARK.md`:
 
 ### Fork feature touch points
 
-Beyond branding and Monterey compatibility, this fork carries four small
-interface additions. Each one keeps its data in a fork-owned file or uses
-an existing `concat-host` API, with minimal wiring in upstream files:
+Beyond branding and Monterey compatibility, this fork carries three
+small interface additions. Each one uses existing `concat-host` APIs
+with minimal wiring in upstream files:
 
-1. **Launch-screen project categories**
-   - Owned file: `src/crates/concat/src/project_categories.rs`
-     (stores `project-categories.json` in the config directory; project
-     manifests stay untouched).
-   - Upstream touch points: `src/crates/concat/src/panes/start.rs`
-     (`StartMsg::AssignCategory`, `CreateCategory`, `CategoryFilter`,
-     `shown()`), `src/crates/concat/src/studio.rs` (`categories` model
-     sync), `src/crates/concat/ui/start.slint` (`CategoryBadge`,
-     `CategoryMenu`, `CategorySidebar`).
-2. **Launch-screen Grid / List view toggle**
-   - Persisted in `project-categories.json` (`view: 0 | 1`).
+1. **Launch-screen Grid / List view toggle**
+   - Persisted in `prefs.json` (`dashboardView: 0 | 1`).
    - Upstream touch points: `src/crates/concat/ui/icons.slint`
      (`Glyph.layout-grid`), `src/crates/concat/ui/start.slint`
-     (`ViewToggle`, `ProjectsList`, `ProjectRow` actions).
-3. **macOS fullscreen title-bar behaviour**
-   - Upstream touch points: `src/crates/concat/src/platform.rs`
-     (`is_fullscreen`), `src/crates/concat/src/lib.rs`
-     (`window-fullscreen` poll on resize),
-     `src/crates/concat/ui/title-bar.slint` (`fullscreen` left-padding
-     collapse + `menus-out` hover reveal).
-4. **Saved templates gallery & slot-fill sheet**
-   - Uses existing `concat_host::templates::{list, save, instantiate, delete}`.
+     (`ViewToggle`, `ProjectsList`, `ProjectRow` actions),
+     `src/crates/concat/src/panes/start.rs` (`StartMsg::ViewMode`,
+     `VIEW_GRID`/`VIEW_LIST`), `src/crates/concat/src/prefs.rs`
+     (`dashboard_view`).
+2. **Launch-screen pagination (18 projects per page)**
+   - Upstream touch points: `src/crates/concat/src/panes/start.rs`
+     (`PAGE_SIZE`, `StartPane.page`, `StartMsg::Page`),
+     `src/crates/concat/src/studio.rs` (filtered recents are sliced at
+     publish), `src/crates/concat/ui/start.slint` (`PageSlot`,
+     `PaginationBar`), `src/crates/concat/ui/app.slint`
+     (`start-page-changed` wiring).
+3. **Saved-templates gallery and slot-fill sheet**
    - Upstream touch points: `src/crates/concat/src/studio.rs`
-     (`templates_library`, `use_template`, `delete_template`,
-     `template_fill_*`), `src/crates/concat/ui/editor.slint`,
-     `src/crates/concat/ui/workspace/seat.slint`,
-     `src/crates/concat/ui/workspace/media-pane.slint`
-     (`TemplateCard`, `TemplateGallery`, `TemplateFillSheet`).
+     (`templates_library`, `template_fill`, `use_template`,
+     `delete_template`, `template_fill_*`), `src/crates/concat/ui/
+     workspace/media-pane.slint` (`TemplateGallery`, fill sheet),
+     `src/crates/concat/ui/editor.slint` and `workspace/seat.slint`
+     (`Editor.library-templates`, `template-*` callbacks).
 
 ## Signing and releases
 

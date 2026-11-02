@@ -153,6 +153,9 @@ pub struct Preferences {
     pub keybinds: BTreeMap<String, String>,
     /// Active shortcut preset profile: "clovercut", "premiere", "finalcut", "davinci", "custom".
     pub shortcut_profile: Option<String>,
+    /// The launch screen's project display: posters (0) or rows (1).
+    /// A Studio Inspirasi preference — upstream has no view toggle.
+    pub dashboard_view: Option<i32>,
 }
 
 /// The voiceover panel's choices, kept from one take to the next and one

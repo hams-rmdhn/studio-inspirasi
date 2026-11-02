@@ -88,13 +88,9 @@ wayland-backend = { version = "0.3", features = ["client_system", "dlopen"] }
 libc = "0.2"
 
 # `_exit`, the way out past the C++ libraries' static destructors; see
-# `leave` in lib.rs. `objc2` reads the NSWindow's own style mask for the
-# fullscreen space the green button opens, and lifts the invisible title
-# bar's cursor rectangles so the strip's buttons get the pointer they ask
-# for (platform.rs); the version Slint's winit already builds.
+# `leave` in lib.rs.
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"
-objc2 = "0.6"
 
 [target.'cfg(target_os = "ios")'.dependencies]
 slint = { version = "1.18", default-features = false, features = [

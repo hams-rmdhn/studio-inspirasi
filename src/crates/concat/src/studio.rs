@@ -732,11 +732,6 @@ pub struct Models {
     pub library_views: Rc<VecModel<LibraryViewData>>,
     pub menu: Rc<VecModel<MenuItemData>>,
     pub bar: Rc<VecModel<MenuItemData>>,
-    /// The File / Edit / View menus whole, for the macOS menu bar while
-    /// the window is fullscreen and the strip's own labels hide.
-    pub menu_file: Rc<VecModel<MenuItemData>>,
-    pub menu_edit: Rc<VecModel<MenuItemData>>,
-    pub menu_view: Rc<VecModel<MenuItemData>>,
     /// The sheets' option lists: what is installed, and who can speak.
     pub caption_models: Rc<VecModel<SharedString>>,
     pub caption_rows: Rc<VecModel<crate::ui::CaptionRowData>>,
@@ -768,8 +763,6 @@ pub struct Models {
     pub seats: Rc<VecModel<SeatBox>>,
     pub dividers: Rc<VecModel<DockDivider>>,
     pub recents: Rc<VecModel<RecentProjectData>>,
-    /// The launch screen's category list, with each one's project count.
-    pub categories: Rc<VecModel<CategoryData>>,
     /// The Templates page's gallery of saved bundles.
     pub library_templates: Rc<VecModel<TemplateData>>,
     /// The Text page's presets, published once from the loaded list.
@@ -830,9 +823,6 @@ impl Models {
             library_views: Rc::new(VecModel::default()),
             menu: Rc::new(VecModel::default()),
             bar: Rc::new(VecModel::default()),
-            menu_file: Rc::new(VecModel::default()),
-            menu_edit: Rc::new(VecModel::default()),
-            menu_view: Rc::new(VecModel::default()),
             caption_models: Rc::new(VecModel::default()),
             caption_rows: Rc::new(VecModel::default()),
             caption_sources: Rc::new(VecModel::default()),
@@ -858,7 +848,6 @@ impl Models {
             seats: Rc::new(VecModel::default()),
             dividers: Rc::new(VecModel::default()),
             recents: Rc::new(VecModel::default()),
-            categories: Rc::new(VecModel::default()),
             library_templates: Rc::new(VecModel::default()),
             text_presets: Rc::new(VecModel::default()),
             style_presets: Rc::new(VecModel::default()),
@@ -1015,9 +1004,6 @@ pub struct Studio {
     pub on_start: bool,
     pub start: crate::panes::start::StartPane,
     pub recents: Vec<projects::Recent>,
-    /// Studio Inspirasi's project categories, in a cell because publish —
-    /// a `&self` — re-keys a moved folder's mapping as it is read.
-    pub categories: RefCell<crate::project_categories::Categories>,
     /// The template library, re-read off disk after a save or a delete.
     pub templates_library: Vec<concat_host::templates::TemplateInfo>,
     /// Template posters by bundle path, filled the first publish that
@@ -2456,8 +2442,9 @@ impl Studio {
         i18n::select(prefs.locale.as_deref().unwrap_or(i18n::ENGLISH), &host.dirs);
         let languages = i18n::languages(&host.dirs);
         let recents = projects::recents(&host.dirs.config);
-        let categories = crate::project_categories::Categories::load(&host.dirs.config);
-        start.view = categories.view;
+        if let Some(view) = prefs.dashboard_view {
+            start.view = view;
+        }
         let templates_library = concat_host::templates::list(&host.dirs.config);
         let text_presets = presets::all(&host.dirs);
         let mut studio = Self {
@@ -2512,7 +2499,6 @@ impl Studio {
             on_start: true,
             start,
             recents,
-            categories: RefCell::new(categories),
             templates_library,
             template_posters: RefCell::new(HashMap::new()),
             template_fill: None,
@@ -13506,9 +13492,6 @@ impl Studio {
             message: self.toast.message.as_str().into(),
             failed: self.toast.failed,
         });
-        // One borrow for the whole mapping pass: a moved folder's stored
-        // path is re-keyed as its card is read, which needs `&mut`.
-        let mut categories = self.categories.borrow_mut();
         // The grid and the list show one page of the filtered recents:
         // the page the pane is on, clamped inside whatever the filter
         // left — a page emptied by a search or a forget never draws.
@@ -13516,8 +13499,6 @@ impl Studio {
             &self.recents,
             &self.start.query,
             self.start.sort,
-            &self.start.category,
-            &categories,
         );
         let pages = filtered
             .len()
@@ -13528,72 +13509,19 @@ impl Studio {
         start_data.page = page as i32;
         start_data.pages = pages as i32;
         start_data.filtered_total = filtered.len() as i32;
-        start_data.unassigned = self
-            .recents
-            .iter()
-            .filter(|recent| !categories.projects.contains_key(&recent.info.path))
-            .count() as i32;
-        start_data.category_title = if self.start.category.is_empty() {
-            SharedString::default()
-        } else if self.start.category == crate::project_categories::FILTER_NONE {
-            t("start.uncategorized").into()
-        } else {
-            categories
-                .by_id(&self.start.category)
-                .map(|category| category.name.as_str().into())
-                .unwrap_or_default()
-        };
         app.set_start(start_data);
         app.set_recents_total(self.recents.len() as i32);
         sync(
-            &models.categories,
-            categories
-                .categories
-                .iter()
-                .map(|category| {
-                    let count = self
-                        .recents
-                        .iter()
-                        .filter(|recent| {
-                            categories.projects.get(&recent.info.path)
-                                == Some(&category.id)
-                        })
-                        .count() as i32;
-                    let [r, g, b, _] = categories.colour_of(&category.id);
-                    CategoryData {
-                        id: category.id.as_str().into(),
-                        name: category.name.as_str().into(),
-                        colour: slint::Color::from_rgb_u8(r, g, b).into(),
-                        count,
-                    }
-                })
-                .collect(),
-        );
-        sync(
             &models.recents,
             filtered
-            .into_iter()
-            .skip(page * crate::panes::start::PAGE_SIZE)
-            .take(crate::panes::start::PAGE_SIZE)
-            .map(|recent| {
-                let project = &recent.info;
-                let category_id = categories
-                    .of_project(&project.path)
-                    .map(|category| category.id.clone());
-                let (category, category_colour) = category_id
-                    .and_then(|id| {
-                        let [r, g, b, _] = categories.colour_of(&id);
-                        categories
-                            .by_id(&id)
-                            .map(|category| category.name.clone())
-                            .map(|name| (name, slint::Color::from_rgb_u8(r, g, b)))
-                    })
-                    .unwrap_or_else(|| (String::new(), slint::Color::default()));
-                RecentProjectData {
-                    category: category.as_str().into(),
-                    category_colour: category_colour.into(),
-                    path: project.path.as_str().into(),
-                    name: project.name.as_str().into(),
+                .into_iter()
+                .skip(page * crate::panes::start::PAGE_SIZE)
+                .take(crate::panes::start::PAGE_SIZE)
+                .map(|recent| {
+                    let project = &recent.info;
+                    RecentProjectData {
+                        path: project.path.as_str().into(),
+                        name: project.name.as_str().into(),
                         detail: format!(
                             "{} × {} · {}",
                             project.width,
@@ -13621,8 +13549,6 @@ impl Studio {
                 })
                 .collect(),
         );
-
-        drop(categories);
 
         // The Templates page's gallery: the saved bundles, poster first.
         sync(
@@ -13993,15 +13919,6 @@ impl Studio {
         sync(&models.bar, bar);
         app.set_app_menu_token(self.menu_bar_token);
         app.set_open_menu(self.open_menu);
-        // The same three menus whole, for the native menu bar macOS
-        // shows while the window is fullscreen and the strip's own
-        // labels hide (app.slint's MenuBar). Nowhere else are they read,
-        // so off the Mac the models just sit empty.
-        if platform::MACOS {
-            sync(&models.menu_file, self.native_menu_rows(0));
-            sync(&models.menu_edit, self.native_menu_rows(1));
-            sync(&models.menu_view, self.native_menu_rows(2));
-        }
     }
 
     /// Asks the workers for anything the launch screen or the bin is
@@ -14394,26 +14311,9 @@ impl Studio {
     }
 
     /// The open menu's rows: File, Edit or View, whichever `open_menu`
-    /// is. The in-window strip reads them one menu at a time; the macOS
-    /// menu bar asks for all three through [`Self::menu_bar_rows`].
+    /// is. The in-window strip reads them one menu at a time.
     fn menu_bar(&self) -> Vec<MenuItemData> {
         self.menu_bar_rows(self.open_menu)
-    }
-
-    /// `menu`'s rows for the macOS menu bar: the same list with each
-    /// separator carrying the runtime's placeholder title — the string a
-    /// `MenuSeparator` lowers to, and the only way a `MenuItem` row marks
-    /// one when a `for` builds the menu from a model (app.slint).
-    fn native_menu_rows(&self, menu: i32) -> Vec<MenuItemData> {
-        self.menu_bar_rows(menu)
-            .into_iter()
-            .map(|mut item| {
-                if item.kind == MenuRow::Separator {
-                    item.label = "\u{E001}⸺".into();
-                }
-                item
-            })
-            .collect()
     }
 
     /// `menu`'s rows: 0 File, 1 Edit, 2 View.

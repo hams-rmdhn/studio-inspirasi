@@ -275,8 +275,6 @@ impl CustomApplicationHandler for DropHandler {
         {
             self.fitted = true;
             fit_to_screen(window);
-            #[cfg(target_os = "macos")]
-            arm_titlebar_cursor(window);
         }
         if !self.wayland_tried
             && let Some(window) = winit_window
@@ -699,100 +697,6 @@ pub fn is_maximized(window: &slint::Window) -> bool {
     {
         let _ = window;
         false
-    }
-}
-
-/// Whether the window is in macOS's own fullscreen: the custom strip
-/// hides its menus there, the way the real menu bar hides, and takes its
-/// left inset off since the traffic lights are gone too.
-///
-/// winit's `fullscreen()` only reports what `set_fullscreen` asked for —
-/// the green button's fullscreen space arrives through AppKit and the
-/// flag is never written, so on a Mac the window's own style mask is the
-/// truth (`windowDidEnterFullScreen` sets `NSWindowStyleMaskFullScreen`
-/// on the NSWindow). Measuring the window against the monitor is not a
-/// fallback worth keeping: on a Retina display a window clamped to the
-/// screen reads as fullscreen in physical pixels while its traffic
-/// lights are still there to cover.
-pub fn is_fullscreen(window: &slint::Window) -> bool {
-    #[cfg(not(target_os = "android"))]
-    {
-        use slint::winit_030::WinitWindowAccessor;
-        window
-            .with_winit_window(|window| {
-                if window.fullscreen().is_some() {
-                    return true;
-                }
-                #[cfg(target_os = "macos")]
-                {
-                    native_fullscreen(window)
-                }
-                #[cfg(not(target_os = "macos"))]
-                {
-                    false
-                }
-            })
-            .unwrap_or(false)
-    }
-    #[cfg(target_os = "android")]
-    {
-        let _ = window;
-        false
-    }
-}
-
-/// The `NSWindowStyleMaskFullScreen` bit on the window's own `NSWindow`:
-/// set by AppKit for the space the green button opens and for
-/// `set_fullscreen` alike, so a windowed frame can never report it.
-#[cfg(target_os = "macos")]
-fn native_fullscreen(window: &WinitWindow) -> bool {
-    use slint::winit_030::winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    let Ok(handle) = window.window_handle() else {
-        return false;
-    };
-    let RawWindowHandle::AppKit(handle) = handle.as_raw() else {
-        return false;
-    };
-    const FULL_SCREEN: usize = 1 << 14;
-    // SAFETY: the AppKit handle winit reports is the live NSView for the
-    // window's life, `window` and `styleMask` take no arguments, and this
-    // runs on the event loop's thread.
-    unsafe {
-        let ns_view = handle.ns_view.as_ptr() as *const objc2::runtime::AnyObject;
-        let ns_window: *const objc2::runtime::AnyObject = objc2::msg_send![ns_view, window];
-        if ns_window.is_null() {
-            return false;
-        }
-        let mask: usize = objc2::msg_send![ns_window, styleMask];
-        mask & FULL_SCREEN != 0
-    }
-}
-
-/// The invisible title bar macOS draws over the strip's top would keep
-/// its own cursor rectangles: a bare arrow over every button in the
-/// strip, whatever `mouse-cursor` the control under it asks for, since
-/// a view's cursor rect outlives the `NSCursor.set` a hover makes. Off
-/// they go for the window's life — every cursor here is winit's, driven
-/// by the element under the pointer, and the traffic lights keep their
-/// own through tracking areas, not rects.
-#[cfg(target_os = "macos")]
-fn arm_titlebar_cursor(window: &WinitWindow) {
-    use slint::winit_030::winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    let Ok(handle) = window.window_handle() else {
-        return;
-    };
-    let RawWindowHandle::AppKit(handle) = handle.as_raw() else {
-        return;
-    };
-    // SAFETY: the AppKit handle winit reports is the live NSView, both
-    // selectors take no arguments, and this runs on the event loop's
-    // thread.
-    unsafe {
-        let ns_view = handle.ns_view.as_ptr() as *const objc2::runtime::AnyObject;
-        let ns_window: *const objc2::runtime::AnyObject = objc2::msg_send![ns_view, window];
-        if !ns_window.is_null() {
-            let () = objc2::msg_send![ns_window, disableCursorRects];
-        }
     }
 }
 
