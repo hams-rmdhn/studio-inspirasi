@@ -864,6 +864,9 @@ component DropTile inherits Rectangle {
 component PosterAction inherits Rectangle {
     in property <Glyph> glyph;
     in property <string> label;
+    /// The pointer is on it — the card holds its actions up through this,
+    /// since this touch area takes the events the card's hover would get.
+    out property <bool> hover: touch.has-hover;
 
     callback clicked();
 
@@ -914,14 +917,19 @@ component PosterCard inherits Pressable {
     callback revealed();
 
     property <length> inset: 6px;
-    property <bool> actions: root.touchy || root.lit || root.ring || root.project.missing;
+    /// The pointer on an action keeps the actions up: the actions' touch
+    /// areas take the events the card's hover would get, so without this
+    /// they would blink - shown by the hover, hidden by covering it.
+    property <bool> action-hover: reveal-action.hover || forget-action.hover;
+    property <bool> actions: root.touchy || root.lit || root.ring || root.project.missing
+        || root.action-hover;
 
     label: root.project.name;
     clicked => { root.opened(); }
     deleted => { root.forgotten(); }
-    background: root.lit ? Theme.launch-raised : Theme.launch-panel;
+    background: root.lit || root.action-hover ? Theme.launch-raised : Theme.launch-panel;
     border-width: 1px;
-    border-color: root.lit ? Theme.line-strong : Theme.line;
+    border-color: root.lit || root.action-hover ? Theme.line-strong : Theme.line;
 
     animate background, border-color { duration: 120ms; easing: cubic-bezier(0.4, 0, 0.2, 1); }
 
@@ -994,20 +1002,28 @@ component PosterCard inherits Pressable {
             }
         }
 
-        if root.actions: HorizontalLayout {
-            x: parent.width - self.preferred-width - 8px;
+        // Always in the tree, hidden when there is no call for it: an `if`
+        // would take the buttons' hovers away with them, and the card's
+        // `actions` reads those hovers to know it may close.
+        actions-box := Rectangle {
+            x: parent.width - self.width - 8px;
             y: 8px;
+            width: root.can-reveal && !root.project.missing ? 62px : 28px;
             height: 28px;
-            width: self.preferred-width;
-            spacing: 6px;
+            visible: root.actions;
 
-            if root.can-reveal && !root.project.missing: PosterAction {
+            reveal-action := PosterAction {
+                x: 0;
+                y: 0;
+                visible: root.can-reveal && !root.project.missing;
                 glyph: Glyph.folder;
                 label: I18n.t("start.showInFolder");
                 clicked => { root.revealed(); }
             }
 
-            PosterAction {
+            forget-action := PosterAction {
+                x: parent.width - self.width;
+                y: 0;
                 glyph: Glyph.close;
                 label: I18n.t("start.removeFromList");
                 clicked => { root.forgotten(); }
@@ -1097,12 +1113,19 @@ component ProjectRow inherits Pressable {
     callback forgotten();
     callback revealed();
 
+    /// The pointer on the reveal button keeps it out: the button's touch
+    /// area takes the events the row's hover would get, so gating it on
+    /// `lit` alone would blink - shown by the hover, hidden by covering it.
+    property <bool> show-actions: root.with-actions && !root.project.missing
+        && (root.lit || reveal-touch.has-hover);
+
     label: root.project.name;
     radius: Theme.r;
     clicked => { root.opened(); }
     deleted => { root.forgotten(); }
     height: 68px;
-    background: root.lit || root.down ? Theme.launch-raised : Colors.transparent;
+    background: root.lit || root.down || reveal-touch.has-hover || forget.has-hover
+        ? Theme.launch-raised : Colors.transparent;
 
     HorizontalLayout {
         padding-left: 8px;
@@ -1179,14 +1202,17 @@ component ProjectRow inherits Pressable {
         // out on hover in front of it — both in the one row, so no verb
         // ever parks on another.
         Rectangle {
-            width: root.with-actions && root.lit ? 80px : 44px;
+            width: root.show-actions ? 80px : 44px;
 
             HorizontalLayout {
                 padding-right: 4px;
                 spacing: 4px;
                 alignment: end;
 
-                if root.with-actions && !root.project.missing && root.lit: row-reveal := Rectangle {
+                // Hidden rather than `if`-gone, so `reveal-touch` keeps its
+                // hover for `show-actions` to read.
+                row-reveal := Rectangle {
+                    visible: root.show-actions;
                     width: 36px;
                     border-radius: Theme.r-xs;
                     background: reveal-touch.has-hover ? Theme.field : Colors.transparent;
