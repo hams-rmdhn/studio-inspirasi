@@ -115,9 +115,9 @@ Attribution is kept as required by AGPL-3.0 and `TRADEMARK.md`:
 
 ### Fork feature touch points
 
-Beyond branding and Monterey compatibility, this fork carries three
-small interface additions. Each one uses existing `concat-host` APIs
-with minimal wiring in upstream files:
+Beyond branding and Monterey compatibility, this fork carries these
+interface additions. Each one uses existing `concat-host` APIs, or a
+small addition to them, with minimal wiring in upstream files:
 
 1. **Launch-screen Grid / List view toggle**
    - Persisted in `prefs.json` (`dashboardView: 0 | 1`).
@@ -141,6 +141,40 @@ with minimal wiring in upstream files:
      workspace/media-pane.slint` (`TemplateGallery`, fill sheet),
      `src/crates/concat/ui/editor.slint` and `workspace/seat.slint`
      (`Editor.library-templates`, `template-*` callbacks).
+4. **Rename and Move-to-Trash for recent projects (0.1.11)**
+   - Rename writes the manifest `name` and the recents entry only; the
+     folder keeps its name. Remove asks through `ConfirmDialog` and, on
+     macOS, moves the folder to the Trash via `NSFileManager`.
+   - Upstream touch points: `src/crates/concat-host/src/projects.rs`
+     (`rename` + test), `src/crates/concat/src/panes/start.rs`
+     (`StartMsg::RenameRecent/RenameEdited/RenameConfirm/RenameCancel`,
+     `ForgetRecent` now asks), `src/crates/concat/src/studio.rs`
+     (`Confirm::TrashProject`, `trash_project`, `is_open_project`),
+     `src/crates/concat/src/platform.rs` (`CAN_TRASH`, `trash`),
+     `src/crates/concat/Cargo.toml` (macOS `objc2-foundation` features),
+     `src/crates/concat/ui/dialogs/rename.slint` (new),
+     `src/crates/concat/ui/primitives/modal.slint` (`Field.accepted`,
+     `Field.focus-all()`), `src/crates/concat/ui/start.slint`
+     (`RowAction`, `ProjectRow`, `PosterCard` actions, rename wiring),
+     `src/crates/concat/ui/icons.slint` (`Glyph.pencil`).
+5. **Title bar: full-screen inset and menu-bar behaviour (0.1.11)**
+   - `platform::is_fullscreen` reads winit's own state (it tracks the
+     green button) on every resize; the strip drops its 80px traffic-light
+     inset in full screen. No `objc2` window poking.
+   - The File/Edit/View sheet is a `ContextMenu { held: true }`: drawn in
+     the window's tree (popups swallow every event outside them), closed
+     by a page-covering press in `app.slint`, by its label, the strip's
+     ground or Escape; hovering another label with a menu open switches.
+   - Upstream touch points: `src/crates/concat/src/platform.rs`,
+     `src/crates/concat/src/lib.rs` (`on_window_resized`,
+     `on_menu_dismissed`), `src/crates/concat/ui/title-bar.slint`
+     (`fullscreen`, `menu-closed`, `MenuLabel.hovered`),
+     `src/crates/concat/ui/primitives/context-menu.slint` (`MenuSheet`,
+     `held`, `dismiss()`), `src/crates/concat/ui/app.slint`.
+   - `assets/applogo-mark.png` is `applogo.png` cropped to its ink
+     (`sips --cropToHeightWidth 802 412 --cropOffset 111 306`); regenerate
+     it if the app icon changes. Used by the title bar and the launch
+     screen's greeting so they align with the page.
 
 ## Signing and releases
 

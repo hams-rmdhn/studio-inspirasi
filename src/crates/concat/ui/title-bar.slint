@@ -57,6 +57,8 @@ component MenuLabel inherits Rectangle {
     in property <string> label;
     /// this label's menu is the one currently open
     in property <bool> current;
+    /// The pointer is on it: with a menu open, that alone opens this one.
+    out property <bool> hovered: touch.has-hover;
 
     callback clicked();
 
@@ -302,6 +304,10 @@ export component TitleBar inherits Rectangle {
     /// The window is maximised, so the middle button restores rather than
     /// maximises and shows the two-squares glyph.
     in property <bool> maximized;
+    /// The window fills its screen. On macOS the traffic lights go with it,
+    /// and so does the room left for them: the mark moves in line with the
+    /// panes' gutter.
+    in property <bool> fullscreen;
 
     callback begin-drag();
     callback toggle-maximize();
@@ -310,6 +316,9 @@ export component TitleBar inherits Rectangle {
     /// A menu was asked for: which one, and where its label sits in the strip,
     /// so the sheet can hang off it.
     callback menu-opened(index: int, at-x: length, keyboard: bool);
+    /// The open menu was put away from the strip: its own label pressed
+    /// again, or the strip's empty ground.
+    callback menu-closed();
     /// Which menu is open, or -1.
     in property <int> menu: -1;
     /// A menu asked for from the keyboard (F10, Alt+F/E/V, the arrows in
@@ -337,6 +346,9 @@ export component TitleBar inherits Rectangle {
     // Rectangles are not hit targets, so presses on them fall through here.
     drag := TouchArea {
         pointer-event(event) => {
+            if (event.kind == PointerEventKind.down && root.menu >= 0) {
+                root.menu-closed();
+            }
             if (event.kind == PointerEventKind.down
                 && event.button == PointerEventButton.left) {
                 root.drag-armed = true;
@@ -367,7 +379,7 @@ export component TitleBar inherits Rectangle {
         y: 0;
         width: parent.width;
         height: parent.height;
-        padding-left: root.macos ? 80px : 8px;
+        padding-left: root.macos && !root.fullscreen ? 80px : 8px;
         // No right padding when the strip ends in its own buttons: the close
         // button belongs in the corner, not eight pixels shy of it.
         padding-right: root.own-buttons ? 0px : 8px;
@@ -385,8 +397,8 @@ export component TitleBar inherits Rectangle {
                 VerticalLayout {
                     alignment: center;
                     Image {
-                        source: @image-url("../../../../assets/applogo.png");
-                        width: 22px;
+                        source: @image-url("../../../../assets/applogo-mark.png");
+                        width: 12px;
                         height: 22px;
                         image-fit: contain;
                     }
@@ -410,8 +422,20 @@ export component TitleBar inherits Rectangle {
         if !root.minimal: file := MenuLabel {
             label: I18n.t("titleBar.file");
             current: root.menu == 0;
+            // Pressed again, it puts its menu away, as a menu bar's does.
             clicked => {
-                root.menu-opened(0, file.absolute-position.x - root.absolute-position.x, false);
+                if (root.menu == 0) {
+                    root.menu-closed();
+                } else {
+                    root.menu-opened(0, file.absolute-position.x - root.absolute-position.x, false);
+                }
+            }
+            // With a menu open, the pointer walking along the strip opens
+            // each one it reaches, without a press.
+            changed hovered => {
+                if (self.hovered && root.menu >= 0 && root.menu != 0) {
+                    root.menu-opened(0, file.absolute-position.x - root.absolute-position.x, false);
+                }
             }
             property <int> asked: root.keyboard-token;
             changed asked => {
@@ -423,8 +447,20 @@ export component TitleBar inherits Rectangle {
         if !root.minimal: edit := MenuLabel {
             label: I18n.t("titleBar.edit");
             current: root.menu == 1;
+            // Pressed again, it puts its menu away, as a menu bar's does.
             clicked => {
-                root.menu-opened(1, edit.absolute-position.x - root.absolute-position.x, false);
+                if (root.menu == 1) {
+                    root.menu-closed();
+                } else {
+                    root.menu-opened(1, edit.absolute-position.x - root.absolute-position.x, false);
+                }
+            }
+            // With a menu open, the pointer walking along the strip opens
+            // each one it reaches, without a press.
+            changed hovered => {
+                if (self.hovered && root.menu >= 0 && root.menu != 1) {
+                    root.menu-opened(1, edit.absolute-position.x - root.absolute-position.x, false);
+                }
             }
             property <int> asked: root.keyboard-token;
             changed asked => {
@@ -436,8 +472,20 @@ export component TitleBar inherits Rectangle {
         if !root.minimal: view := MenuLabel {
             label: I18n.t("titleBar.view");
             current: root.menu == 2;
+            // Pressed again, it puts its menu away, as a menu bar's does.
             clicked => {
-                root.menu-opened(2, view.absolute-position.x - root.absolute-position.x, false);
+                if (root.menu == 2) {
+                    root.menu-closed();
+                } else {
+                    root.menu-opened(2, view.absolute-position.x - root.absolute-position.x, false);
+                }
+            }
+            // With a menu open, the pointer walking along the strip opens
+            // each one it reaches, without a press.
+            changed hovered => {
+                if (self.hovered && root.menu >= 0 && root.menu != 2) {
+                    root.menu-opened(2, view.absolute-position.x - root.absolute-position.x, false);
+                }
             }
             property <int> asked: root.keyboard-token;
             changed asked => {

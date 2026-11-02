@@ -159,6 +159,8 @@ export enum Glyph {
     info,
     help,
     folder,
+    /// rename, on a recent project
+    pencil,
     /// the launch screen's learn-and-community cards: the guides, the
     /// first edit, a problem to report, and the way out to a web page
     book,
@@ -251,6 +253,13 @@ export component Icon inherits Rectangle {
         size: root.size; tint: root.tint; weight: root.weight;
         commands: "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9"
             + "A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z";
+    }
+
+    // lucide/pencil
+    if root.glyph == Glyph.pencil: Stroked {
+        size: root.size; tint: root.tint; weight: root.weight;
+        commands: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352"
+            + "a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z M15 5l4 4";
     }
 
     // lucide/book-open

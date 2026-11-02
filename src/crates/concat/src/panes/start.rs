@@ -12,7 +12,8 @@ use concat_host::projects;
 use crate::i18n::{t, tf};
 use crate::platform;
 use crate::studio::{
-    ASPECTS, RATES, SIZES, Studio, custom_frame, custom_rate, fps_of, frame_size, home_folder,
+    ASPECTS, Confirm, RATES, SIZES, Studio, custom_frame, custom_rate, fps_of, frame_size,
+    home_folder,
 };
 use crate::ui::StartData;
 
@@ -47,9 +48,19 @@ pub enum StartMsg {
     /// The folder the Open picker answered with.
     OpenChosen(PathBuf),
     OpenRecent(String),
+    /// Remove a recent project: asks first - to the Trash and off the
+    /// list - or, for a folder that has gone, just takes it off the list.
     ForgetRecent(String),
     /// Show a project's folder in the file manager.
     RevealRecent(String),
+    /// Put up the rename sheet for a recent project.
+    RenameRecent(String),
+    /// What the rename sheet's field holds now.
+    RenameEdited(String),
+    /// Rename the project to what the field holds.
+    RenameConfirm,
+    /// Take the rename sheet down, renaming nothing.
+    RenameCancel,
     /// What the projects' search field holds now.
     SearchEdited(String),
     /// How the projects are ordered: [`SORT_RECENT`] or [`SORT_NAME`].
@@ -170,6 +181,12 @@ pub struct StartPane {
     /// sheet is about to make: imported into it once it opens, and let go
     /// if the sheet is put down instead.
     pub dropped: Vec<PathBuf>,
+    /// The recent project whose rename sheet is up, by its folder.
+    pub renaming: Option<String>,
+    /// The new name as typed in the rename sheet.
+    pub rename_name: String,
+    /// Why the last Rename was refused; empty for none.
+    pub rename_error: String,
 }
 
 impl Default for StartPane {
@@ -193,6 +210,9 @@ impl Default for StartPane {
             view: VIEW_GRID,
             page: 0,
             dropped: Vec::new(),
+            renaming: None,
+            rename_name: String::new(),
+            rename_error: String::new(),
         }
     }
 }
@@ -349,10 +369,68 @@ impl StartPane {
                 }
             }
             StartMsg::ForgetRecent(path) => {
-                if let Err(error) = projects::forget(&studio.host.dirs.config, &path) {
-                    studio.notify(&error, true);
+                let recent = studio
+                    .recents
+                    .iter()
+                    .find(|recent| recent.info.path == path)
+                    .cloned();
+                match recent {
+                    // There and still a project: the Trash, asked first.
+                    Some(recent) if recent.present => {
+                        studio.confirm = Some(Confirm::TrashProject {
+                            path,
+                            name: recent.info.name,
+                        });
+                    }
+                    // A folder that has gone has nothing to throw away:
+                    // off the list, which a return of the drive undoes.
+                    _ => {
+                        if let Err(error) = projects::forget(&studio.host.dirs.config, &path) {
+                            studio.notify(&error, true);
+                        }
+                        studio.recents = projects::recents(&studio.host.dirs.config);
+                    }
+                }
+            }
+            StartMsg::RenameRecent(path) => {
+                if studio.is_open_project(&path) {
+                    studio.notify(&t("start.projectIsOpen"), true);
+                    return;
+                }
+                self.rename_name = studio
+                    .recents
+                    .iter()
+                    .find(|recent| recent.info.path == path)
+                    .map(|recent| recent.info.name.clone())
+                    .unwrap_or_default();
+                self.rename_error.clear();
+                self.renaming = Some(path);
+            }
+            StartMsg::RenameEdited(name) => {
+                self.rename_name = name;
+                self.rename_error.clear();
+            }
+            StartMsg::RenameConfirm => {
+                let Some(path) = self.renaming.clone() else {
+                    return;
+                };
+                if self.rename_name.trim().is_empty() {
+                    self.rename_error = t("start.renameEmpty");
+                    return;
+                }
+                match projects::rename(&studio.host.dirs.config, &path, &self.rename_name) {
+                    Ok(name) => {
+                        self.renaming = None;
+                        self.rename_error.clear();
+                        studio.notify(&tf("start.renamed", &[&name]), false);
+                    }
+                    Err(error) => self.rename_error = error,
                 }
                 studio.recents = projects::recents(&studio.host.dirs.config);
+            }
+            StartMsg::RenameCancel => {
+                self.renaming = None;
+                self.rename_error.clear();
             }
             StartMsg::RevealRecent(path) => {
                 if let Err(error) = platform::reveal(&path) {
@@ -599,6 +677,9 @@ impl StartPane {
             page: 0,
             pages: 1,
             filtered_total: 0,
+            renaming: self.renaming.is_some(),
+            rename_name: self.rename_name.as_str().into(),
+            rename_error: self.rename_error.as_str().into(),
         }
     }
 }

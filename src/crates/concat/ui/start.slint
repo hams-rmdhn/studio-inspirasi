@@ -164,6 +164,11 @@ export struct StartData {
     /// own slice — what the page bar counts from and the section head's
     /// badge reports once the grid is paged.
     filtered-total: int,
+    /// A recent project's rename sheet is up, with the name as typed and
+    /// why the last Rename was refused (empty for none).
+    renaming: bool,
+    rename-name: string,
+    rename-error: string,
 }
 
 // ── the small parts ──────────────────────────────────────────────────────
@@ -873,7 +878,9 @@ component PosterAction inherits Rectangle {
     width: 28px;
     height: 28px;
     border-radius: self.width / 2;
-    background: touch.has-hover ? Theme.on-scrim.with-alpha(0.24) : Theme.scrim;
+    // The accent on hover, as the page's own New project tile wears it: a
+    // thin white wash over a bright poster all but vanished.
+    background: touch.has-hover ? Theme.accent : Theme.scrim;
     accessible-role: button;
     accessible-label: root.label;
     accessible-action-default => { root.clicked(); }
@@ -886,7 +893,7 @@ component PosterAction inherits Rectangle {
         glyph: root.glyph;
         size: 13px;
         weight: 2.2;
-        tint: Theme.on-scrim;
+        tint: touch.has-hover ? Theme.on-accent : Theme.on-scrim;
     }
 
     touch := TouchArea {
@@ -915,12 +922,14 @@ component PosterCard inherits Pressable {
     callback opened();
     callback forgotten();
     callback revealed();
+    callback renamed();
 
     property <length> inset: 6px;
     /// The pointer on an action keeps the actions up: the actions' touch
     /// areas take the events the card's hover would get, so without this
     /// they would blink - shown by the hover, hidden by covering it.
-    property <bool> action-hover: reveal-action.hover || forget-action.hover;
+    property <bool> action-hover: rename-action.hover || reveal-action.hover
+        || forget-action.hover;
     property <bool> actions: root.touchy || root.lit || root.ring || root.project.missing
         || root.action-hover;
 
@@ -1008,12 +1017,21 @@ component PosterCard inherits Pressable {
         actions-box := Rectangle {
             x: parent.width - self.width - 8px;
             y: 8px;
-            width: root.can-reveal && !root.project.missing ? 62px : 28px;
+            width: root.project.missing ? 28px : root.can-reveal ? 96px : 62px;
             height: 28px;
             visible: root.actions;
 
-            reveal-action := PosterAction {
+            rename-action := PosterAction {
                 x: 0;
+                y: 0;
+                visible: !root.project.missing;
+                glyph: Glyph.pencil;
+                label: I18n.t("start.renameProject");
+                clicked => { root.renamed(); }
+            }
+
+            reveal-action := PosterAction {
+                x: 34px;
                 y: 0;
                 visible: root.can-reveal && !root.project.missing;
                 glyph: Glyph.folder;
@@ -1024,8 +1042,9 @@ component PosterCard inherits Pressable {
             forget-action := PosterAction {
                 x: parent.width - self.width;
                 y: 0;
-                glyph: Glyph.close;
-                label: I18n.t("start.removeFromList");
+                glyph: root.project.missing ? Glyph.close : Glyph.trash;
+                label: root.project.missing ? I18n.t("start.removeFromList")
+                    : I18n.t("start.moveToTrash");
                 clicked => { root.forgotten(); }
             }
         }
@@ -1073,6 +1092,7 @@ component ProjectsGrid inherits Rectangle {
     callback opened(path: string);
     callback forgotten(path: string);
     callback revealed(path: string);
+    callback renamed(path: string);
 
     property <length> gap: 16px;
     property <length> min-card: 220px;
@@ -1097,39 +1117,90 @@ component ProjectsGrid inherits Rectangle {
         opened => { root.opened(project.path); }
         forgotten => { root.forgotten(project.path); }
         revealed => { root.revealed(project.path); }
+        renamed => { root.renamed(project.path); }
+    }
+}
+
+// One verb at a list row's end: a mark in a fixed square, no words. The
+// square is always in the row's layout - shown or not - so the verbs never
+// move under the pointer; `shown` only decides whether it is drawn. Its
+// hover is read out so the row can keep it up while the pointer is on it:
+// this touch area takes the events the row's own hover would get.
+component RowAction inherits Rectangle {
+    in property <Glyph> glyph;
+    in property <string> label;
+    in property <bool> shown: true;
+    /// Hovers red: the verb that throws the project away.
+    in property <bool> danger;
+    /// Not gated on `shown`: that is read back through the row's hover, a
+    /// loop. A hidden one's touch area is disabled, and a disabled touch
+    /// area reports no hover, so this is false while it is hidden anyway.
+    out property <bool> hover: touch.has-hover;
+
+    callback clicked();
+
+    width: 32px;
+    border-radius: Theme.r-xs;
+    background: root.hover ? (root.danger ? Theme.danger-soft : Theme.field) : Colors.transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+
+    animate background { duration: 100ms; }
+
+    Icon {
+        visible: root.shown;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        glyph: root.glyph;
+        size: 14px;
+        tint: !root.hover ? Theme.fg-dim : root.danger ? Theme.danger : Theme.fg;
+    }
+
+    touch := TouchArea {
+        enabled: root.shown;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    Tip {
+        text: root.label;
+        active: root.hover;
     }
 }
 
 // One project as a row of a list: the narrow page's shape, where a grid of
 // posters a thumb wide is a column of stamps. The poster small at the
-// start, the name and what it is beside it, Remove at the end.
+// start, the name and what it is beside it, the verbs at the end.
 component ProjectRow inherits Pressable {
     in property <RecentProjectData> project;
-    /// The desk's row has room beside the cross for the verb the narrow
+    /// The desk's row has room beside the cross for the verbs the narrow
     /// page has nowhere to put.
     in property <bool> with-actions;
 
     callback opened();
     callback forgotten();
     callback revealed();
+    callback renamed();
 
-    /// The pointer on the reveal button keeps it out: the button's touch
-    /// area takes the events the row's hover would get, so gating it on
-    /// `lit` alone would blink - shown by the hover, hidden by covering it.
+    property <bool> action-hover: rename-action.hover || reveal-action.hover
+        || forget-action.hover;
+    /// Rename and Show in folder come out on hover; the pointer on one of
+    /// them keeps them out (see RowAction).
     property <bool> show-actions: root.with-actions && !root.project.missing
-        && (root.lit || reveal-touch.has-hover);
+        && (root.lit || root.action-hover);
 
     label: root.project.name;
     radius: Theme.r;
     clicked => { root.opened(); }
     deleted => { root.forgotten(); }
     height: 68px;
-    background: root.lit || root.down || reveal-touch.has-hover || forget.has-hover
+    background: root.lit || root.down || root.action-hover
         ? Theme.launch-raised : Colors.transparent;
 
     HorizontalLayout {
         padding-left: 8px;
-        padding-right: 2px;
+        padding-right: 4px;
         padding-top: 8px;
         padding-bottom: 8px;
         spacing: 12px;
@@ -1197,58 +1268,35 @@ component ProjectRow inherits Pressable {
             }
         }
 
-        // A thumb's target, though the cross is small: the whole square
-        // at the row's end takes the press. On the desk the folder comes
-        // out on hover in front of it — both in the one row, so no verb
-        // ever parks on another.
-        Rectangle {
-            width: root.show-actions ? 80px : 44px;
+        // The verbs, marks only, in squares of a fixed width that are in the
+        // layout whether drawn or not: nothing at the row's end ever moves.
+        // The narrow page has the one square; the desk has three.
+        HorizontalLayout {
+            spacing: 2px;
 
-            HorizontalLayout {
-                padding-right: 4px;
-                spacing: 4px;
-                alignment: end;
+            rename-action := RowAction {
+                width: root.with-actions ? 32px : 0px;
+                shown: root.show-actions;
+                glyph: Glyph.pencil;
+                label: I18n.t("start.renameProject");
+                clicked => { root.renamed(); }
+            }
 
-                // Hidden rather than `if`-gone, so `reveal-touch` keeps its
-                // hover for `show-actions` to read.
-                row-reveal := Rectangle {
-                    visible: root.show-actions;
-                    width: 36px;
-                    border-radius: Theme.r-xs;
-                    background: reveal-touch.has-hover ? Theme.field : Colors.transparent;
+            reveal-action := RowAction {
+                width: root.with-actions ? 32px : 0px;
+                shown: root.show-actions;
+                glyph: Glyph.folder;
+                label: I18n.t("start.showInFolder");
+                clicked => { root.revealed(); }
+            }
 
-                    Icon {
-                        x: (parent.width - self.width) / 2;
-                        y: (parent.height - self.height) / 2;
-                        glyph: Glyph.folder;
-                        size: 14px;
-                        tint: Theme.fg-dim;
-                    }
-
-                    reveal-touch := TouchArea {
-                        mouse-cursor: pointer;
-                        clicked => { root.revealed(); }
-                    }
-                }
-
-                row-forget := Rectangle {
-                    width: 36px;
-                    border-radius: Theme.r-xs;
-                    background: forget.has-hover ? Theme.field : Colors.transparent;
-
-                    Icon {
-                        x: (parent.width - self.width) / 2;
-                        y: (parent.height - self.height) / 2;
-                        glyph: Glyph.close;
-                        size: 14px;
-                        tint: forget.pressed || forget.has-hover ? Theme.fg : Theme.fg-dim;
-                    }
-
-                    forget := TouchArea {
-                        mouse-cursor: pointer;
-                        clicked => { root.forgotten(); }
-                    }
-                }
+            forget-action := RowAction {
+                width: root.with-actions ? 32px : 40px;
+                danger: !root.project.missing;
+                glyph: root.project.missing ? Glyph.close : Glyph.trash;
+                label: root.project.missing ? I18n.t("start.removeFromList")
+                    : I18n.t("start.moveToTrash");
+                clicked => { root.forgotten(); }
             }
         }
     }
@@ -1319,6 +1367,7 @@ component ProjectsList inherits Rectangle {
     callback opened(path: string);
     callback forgotten(path: string);
     callback revealed(path: string);
+    callback renamed(path: string);
 
     property <length> row-h: 68px;
     property <length> gap: 2px;
@@ -1333,6 +1382,7 @@ component ProjectsList inherits Rectangle {
         opened => { root.opened(project.path); }
         forgotten => { root.forgotten(project.path); }
         revealed => { root.revealed(project.path); }
+        renamed => { root.renamed(project.path); }
     }
 }
 
@@ -1889,6 +1939,7 @@ component WideHome inherits Rectangle {
     callback open-recent(path: string);
     callback forget-recent(path: string);
     callback reveal-recent(path: string);
+    callback rename-recent(path: string);
     callback search-edited(query: string);
     callback sort-changed(sort: int);
     callback view-mode(view: int);
@@ -1945,9 +1996,13 @@ component WideHome inherits Rectangle {
                     spacing: 20px;
                     alignment: start;
 
+                    // The mark cropped to its ink (412 x 802), so its left edge
+                    // is the column's: the square app icon carried a third of
+                    // its width in clear margin and sat indented from the
+                    // tiles under it.
                     Image {
-                        source: @image-url("../../../../assets/applogo.png");
-                        width: 80px;
+                        source: @image-url("../../../../assets/applogo-mark.png");
+                        width: 41px;
                         height: 80px;
                         image-fit: contain;
                     }
@@ -2074,6 +2129,7 @@ component WideHome inherits Rectangle {
                     opened(path) => { root.open-recent(path); }
                     forgotten(path) => { root.forget-recent(path); }
                     revealed(path) => { root.reveal-recent(path); }
+                    renamed(path) => { root.rename-recent(path); }
                 }
 
                 if root.view == 1: ProjectsList {
@@ -2083,6 +2139,7 @@ component WideHome inherits Rectangle {
                     opened(path) => { root.open-recent(path); }
                     forgotten(path) => { root.forget-recent(path); }
                     revealed(path) => { root.reveal-recent(path); }
+                    renamed(path) => { root.rename-recent(path); }
                 }
 
                 if root.pages > 1: VerticalLayout {
@@ -2419,6 +2476,7 @@ export component StartScreen inherits Rectangle {
     callback open-recent(path: string);
     callback forget-recent(path: string);
     callback reveal-recent(path: string);
+    callback rename-recent(path: string);
     callback open-settings();
     callback search-edited(query: string);
     callback sort-changed(sort: int);
@@ -2456,6 +2514,7 @@ export component StartScreen inherits Rectangle {
         open-recent(path) => { root.open-recent(path); }
         forget-recent(path) => { root.forget-recent(path); }
         reveal-recent(path) => { root.reveal-recent(path); }
+        rename-recent(path) => { root.rename-recent(path); }
         search-edited(query) => { root.search-edited(query); }
         sort-changed(sort) => { root.sort-changed(sort); }
         view-mode(view) => { root.view-mode(view); }

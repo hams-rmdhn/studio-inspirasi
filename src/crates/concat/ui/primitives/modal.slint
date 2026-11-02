@@ -726,6 +726,15 @@ export component Field inherits Rectangle {
     in property <int> max-length;
 
     callback edited(text: string);
+    /// Return in the field, with the text as it stands.
+    callback accepted(text: string);
+
+    /// The caret in the field and everything in it selected, the way a
+    /// rename starts: the first keystroke replaces the old name.
+    public function focus-all() {
+        input.focus();
+        input.select-all();
+    }
 
     // A layout owns its children's size on both axes: it reads min, preferred
     // and max, and a bare `height` is none of those. Without a max the row
@@ -815,6 +824,8 @@ export component Field inherits Rectangle {
                     self.scroll = parent.width - caret.x - self.text-cursor-width;
                 }
             }
+
+            accepted => { root.accepted(self.text); }
 
             edited => {
                 if (root.max-length > 0 && self.text.character-count > root.max-length) {

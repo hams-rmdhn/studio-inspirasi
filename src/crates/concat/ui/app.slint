@@ -30,6 +30,7 @@ import { ModelData, SettingsData, SettingsDialog, SystemFactData } from "dialogs
 import { ProjectDialog, ProjectSheetData } from "dialogs/project.slint";
 import { RelinkDialog, RelinkData, MissingMediaItem } from "dialogs/relink.slint";
 import { ConfirmData, ConfirmDialog } from "dialogs/confirm.slint";
+import { RenameDialog } from "dialogs/rename.slint";
 import { CaptionsDialog, CaptionsSheetData } from "dialogs/captions.slint";
 import { SpeechDialog, SpeechSheetData } from "dialogs/speech.slint";
 import { NewVoiceData, NewVoiceDialog } from "dialogs/new-voice.slint";
@@ -134,7 +135,7 @@ export component App inherits Window {
     }
     property <bool> sheet-open: root.export.open || root.settings.open
         || root.project-sheet.open || root.captions.open || root.speech.open
-        || root.start.composing || root.new-voice.open;
+        || root.start.composing || root.start.renaming || root.new-voice.open;
     changed sheet-open => {
         if (!root.sheet-open) {
             keys.focus();
@@ -177,6 +178,10 @@ export component App inherits Window {
     callback start-open-recent(path: string);
     callback start-forget-recent(path: string);
     callback start-reveal-recent(path: string);
+    callback start-rename-recent(path: string);
+    callback start-rename-edited(name: string);
+    callback start-rename-confirm();
+    callback start-rename-cancel();
     callback start-search-edited(query: string);
     callback start-sort-changed(sort: int);
     /// The launch screen's projects as posters or as rows.
@@ -221,6 +226,8 @@ export component App inherits Window {
     in property <length> app-menu-height;
     in property <int> app-menu-token;
     callback menu-opened(index: int);
+    /// The open menu was put away without a choice.
+    callback menu-dismissed();
     callback app-menu-selected(id: string);
 
     callback titlebar-begin-drag();
@@ -235,6 +242,9 @@ export component App inherits Window {
     /// Read back from the platform on every resize, so the strip can show
     /// restore rather than maximise - whichever route maximised it.
     in-out property <bool> window-maximized;
+    /// The window fills its screen: on macOS the traffic lights are gone,
+    /// and the strip drops the room it keeps for them.
+    in-out property <bool> window-fullscreen;
     callback window-resized();
     changed width => { root.window-resized(); }
     // The height goes to the Panes global as well: the menus hung under the
@@ -542,6 +552,13 @@ export component App inherits Window {
             // finishes the activity, so Back with Export or a sheet open
             // quit the app, a running export with it.
             if (event.text == Key.Escape || event.text == Key.Back) {
+                // A strip menu opened with the pointer: its sheet has no
+                // keys of its own then, so Escape lands here.
+                if (root.open-menu >= 0) {
+                    appmenu.dismiss();
+                    root.menu-dismissed();
+                    return accept;
+                }
                 if (root.confirm.open) { root.confirm-dismissed(); return accept; }
                 if (root.relink.open) { root.relink-dismiss(); return accept; }
                 if (root.new-voice.open) {
@@ -628,9 +645,15 @@ export component App inherits Window {
                     root.menu-by-keyboard = keyboard;
                     root.menu-opened(index);
                 }
+                menu-closed => {
+                    appmenu.dismiss();
+                    keys.focus();
+                    root.menu-dismissed();
+                }
 
                 own-buttons: root.own-window-buttons;
                 maximized: root.window-maximized;
+                fullscreen: root.window-fullscreen;
                 begin-drag => { root.titlebar-begin-drag(); }
                 toggle-maximize => { root.titlebar-toggle-maximize(); }
                 minimize => { root.titlebar-minimize(); }
@@ -662,6 +685,7 @@ export component App inherits Window {
                 open-recent(path) => { root.start-open-recent(path); }
                 forget-recent(path) => { root.start-forget-recent(path); }
                 reveal-recent(path) => { root.start-reveal-recent(path); }
+                rename-recent(path) => { root.start-rename-recent(path); }
                 search-edited(query) => { root.start-search-edited(query); }
                 sort-changed(sort) => { root.start-sort-changed(sort); }
                 view-mode(view) => { root.start-view-mode(view); }
@@ -1031,6 +1055,24 @@ export component App inherits Window {
         dismissed => { root.confirm-dismissed(); }
     }
 
+    // A recent project's new name, from the launch screen's pencil.
+    RenameDialog {
+        inset-top: root.safe-area-insets.top;
+        inset-bottom: root.safe-area-insets.bottom;
+        inset-left: root.safe-area-insets.left;
+        inset-right: root.safe-area-insets.right;
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        open: root.start.renaming;
+        name: root.start.rename-name;
+        error: root.start.rename-error;
+        edited(name) => { root.start-rename-edited(name); }
+        confirmed => { root.start-rename-confirm(); }
+        dismissed => { root.start-rename-cancel(); }
+    }
+
 
     // Over the workspace and both sheets, under the menus. A tooltip has to
     // clear the pane it belongs to — panes clip — and it has no business over
@@ -1048,16 +1090,46 @@ export component App inherits Window {
     // layer so the order does not strictly decide the outcome, but the
     // element that places it still measures against this one's box, and this
     // one is the whole window.
+    // While a strip menu is open, a press anywhere under the strip puts it
+    // away - and only that: a menu bar's dismissing press does nothing
+    // else, so a stray press meant to close File cannot drop a clip. The
+    // strip itself is left uncovered, so its labels take the pointer: a
+    // press on Edit opens Edit at once, and walking along them switches.
+    if root.open-menu >= 0: TouchArea {
+        x: 0;
+        y: 32px + root.safe-area-insets.top;
+        width: root.width;
+        height: root.height - self.y;
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) {
+                appmenu.dismiss();
+                keys.focus();
+                root.menu-dismissed();
+            }
+        }
+    }
+
     appmenu := ContextMenu {
         x: 0;
         y: 0;
         width: root.width;
         height: root.height;
+        held: true;
+        // The held sheet is part of the tree, so the keys it had go with
+        // it when it closes: back to the window's own scope, or the
+        // shortcuts would be deaf until the next click.
+        dismissed => {
+            keys.focus();
+            root.menu-dismissed();
+        }
         items: root.app-menu-items;
         menu-height: root.app-menu-height;
         token: root.app-menu-token;
         keyboard: root.menu-by-keyboard;
-        selected(id) => { root.app-menu-selected(id); }
+        selected(id) => {
+            keys.focus();
+            root.app-menu-selected(id);
+        }
         // The arrows walk the strip: File, Edit, View and round again.
         neighbour(by) => { root.open-menu-from-keys(Math.mod(root.open-menu + by, 3)); }
     }

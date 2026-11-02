@@ -646,6 +646,32 @@ pub fn recents(config: &Path) -> Vec<Recent> {
         .collect()
 }
 
+/// Gives a project a new name: the manifest's `name`, which the title bar and
+/// the recents list show, and the recents entry with it. The folder keeps
+/// its name - its path is what the recents list, the cache and every media
+/// path inside the project hang on. Returns the name as written, trimmed.
+pub fn rename(config: &Path, path: &str, name: &str) -> Result<String, String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("a project needs a name".to_owned());
+    }
+    let mut document = read_document(path)?
+        .ok_or_else(|| format!("{path} is not a Studio Inspirasi project"))?;
+    document
+        .as_object_mut()
+        .ok_or_else(|| format!("{path} is not a Studio Inspirasi project"))?
+        .insert("name".to_owned(), serde_json::Value::String(name.to_owned()));
+    save(path, &document)?;
+
+    let mut entries = read_recents(config);
+    entries
+        .iter_mut()
+        .filter(|entry| same_path(&entry.path, path))
+        .for_each(|entry| entry.name = name.to_owned());
+    write_recents(config, &entries)?;
+    Ok(name.to_owned())
+}
+
 /// Removes one project from the list. The folder itself is left alone.
 pub fn forget(config: &Path, path: &str) -> Result<(), String> {
     let mut entries = read_recents(config);
@@ -818,6 +844,30 @@ mod tests {
         let read: Vec<ProjectInfo> = serde_json::from_str(&list).expect("reads");
         assert_eq!(read[0].canvas, [0, 177, 64, 255]);
         assert_eq!(read[1].canvas, [0, 0, 0, 0]);
+    }
+
+    /// A rename changes the name the manifest and the recents list carry and
+    /// nothing else: the folder, the settings and every other key stay.
+    #[test]
+    fn rename_changes_the_name_and_keeps_the_rest() {
+        let scratch = tempfile::tempdir().unwrap();
+        let config = scratch.path().join("config");
+        let project = create(scratch.path().to_str().unwrap(), "Before", 64, 36, 24, 1).unwrap();
+        let mut document = read_document(&project.path).unwrap().unwrap();
+        document["extra"] = serde_json::json!({ "kept": true });
+        save(&project.path, &document).unwrap();
+        remember(&config, &project).unwrap();
+
+        assert_eq!(rename(&config, &project.path, "  After  ").unwrap(), "After");
+
+        let reopened = open(&project.path).unwrap();
+        assert_eq!(reopened.name, "After");
+        assert_eq!((reopened.width, reopened.height), (64, 36));
+        assert_eq!(read_document(&project.path).unwrap().unwrap()["extra"]["kept"], true);
+        assert_eq!(list(&config)[0].name, "After");
+        assert_eq!(list(&config)[0].path, project.path);
+        assert!(rename(&config, &project.path, "   ").is_err());
+        assert_eq!(open(&project.path).unwrap().name, "After");
     }
 
     #[test]

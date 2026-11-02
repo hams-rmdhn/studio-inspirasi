@@ -1,0 +1,92 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Studio Inspirasi contributors
+
+import { I18n } from "../i18n.slint";
+import { Theme } from "../theme/theme.slint";
+import { Glyph } from "../icons.slint";
+import { Button, Field, Modal } from "../primitives/modal.slint";
+
+// A recent project's new name. The name the title bar and the recents list
+// show; the folder keeps its own. Return renames and Escape backs out, the
+// way the confirmation sheet answers from the keyboard; a click on the scrim
+// or the close backs out too.
+export component RenameDialog inherits Modal {
+    /// The name as typed, Rust's copy: seeded with the current name.
+    in property <string> name;
+    /// Why the last Rename was refused; empty for none.
+    in property <string> error;
+
+    callback edited(name: string);
+    callback confirmed();
+    callback dismissed();
+
+    title: I18n.t("start.renameTitle");
+    glyph: Glyph.pencil;
+    surface-width: 400px;
+
+    closed => { root.dismissed(); }
+
+    // On the next turn of the loop rather than in `changed open`: the field
+    // seeds itself from `name` in a change handler of its own, and selecting
+    // before that ran would select nothing.
+    focus-later := Timer {
+        interval: 30ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            field.focus-all();
+        }
+    }
+    changed open => {
+        if (root.open) {
+            focus-later.running = true;
+        }
+    }
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.dismissed();
+                return accept;
+            }
+            reject
+        }
+
+        VerticalLayout {
+            padding: 16px;
+            spacing: 12px;
+
+            field := Field {
+                value: root.name;
+                placeholder: I18n.t("start.renamePlaceholder");
+                max-length: 120;
+                edited(text) => { root.edited(text); }
+                accepted(text) => { root.confirmed(); }
+            }
+
+            if root.error != "": Text {
+                text: root.error;
+                color: Theme.danger;
+                font-size: Theme.fs-sm;
+                wrap: word-wrap;
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                spacing: 8px;
+
+                Button {
+                    label: I18n.t("common.cancel");
+                    clicked => { root.dismissed(); }
+                }
+
+                Button {
+                    primary: true;
+                    enabled: root.name != "";
+                    label: I18n.t("start.rename");
+                    clicked => { root.confirmed(); }
+                }
+            }
+        }
+    }
+}

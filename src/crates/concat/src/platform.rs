@@ -683,6 +683,25 @@ fn fit_to_screen(window: &WinitWindow) {
     }
 }
 
+/// Whether the window fills its screen, the macOS green button's or the
+/// API's: the traffic lights are gone then, and the strip's inset for them
+/// with them. winit tracks the green button's itself
+/// (`window_will_enter_fullscreen`), so this is its own state read back.
+pub fn is_fullscreen(window: &slint::Window) -> bool {
+    #[cfg(not(target_os = "android"))]
+    {
+        use slint::winit_030::WinitWindowAccessor;
+        window
+            .with_winit_window(|window| window.fullscreen().is_some())
+            .unwrap_or(false)
+    }
+    #[cfg(target_os = "android")]
+    {
+        let _ = window;
+        false
+    }
+}
+
 /// Whether the window is currently maximised, for the strip to pick the
 /// maximise or the restore glyph. False where there is no such state.
 pub fn is_maximized(window: &slint::Window) -> bool {
@@ -1136,6 +1155,27 @@ pub fn reveal(path: &str) -> Result<(), String> {
             "this device has no file manager to open {path} with"
         ))
     }
+}
+
+/// Whether [`trash`] can move a folder somewhere it comes back from. Where
+/// it cannot, the launch screen's Remove only takes a project off the list.
+pub const CAN_TRASH: bool = cfg!(target_os = "macos");
+
+/// Moves `path` to the Trash, where Finder's Put Back restores it: never a
+/// delete, so a project removed by mistake is not lost.
+#[cfg(target_os = "macos")]
+pub fn trash(path: &str) -> Result<(), String> {
+    use objc2_foundation::{NSFileManager, NSString, NSURL};
+    let url = NSURL::fileURLWithPath(&NSString::from_str(path));
+    NSFileManager::defaultManager()
+        .trashItemAtURL_resultingItemURL_error(&url, None)
+        .map_err(|error| error.localizedDescription().to_string())
+}
+
+/// No Trash to move it to here; see [`CAN_TRASH`].
+#[cfg(not(target_os = "macos"))]
+pub fn trash(path: &str) -> Result<(), String> {
+    Err(format!("there is no Trash to move {path} to on this system"))
 }
 
 #[cfg(test)]

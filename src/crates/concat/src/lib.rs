@@ -681,6 +681,22 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
                 if app.get_window_maximized() != maximized {
                     app.set_window_maximized(maximized);
                 }
+                let fullscreen = platform::is_fullscreen(app.window());
+                if app.get_window_fullscreen() != fullscreen {
+                    app.set_window_fullscreen(fullscreen);
+                }
+                // Once more after the system's animation: leaving full
+                // screen resizes the window before winit clears its state,
+                // and the last resize of the way out would read it stale.
+                let weak = app.as_weak();
+                slint::Timer::single_shot(std::time::Duration::from_millis(900), move || {
+                    if let Some(app) = weak.upgrade() {
+                        let fullscreen = platform::is_fullscreen(app.window());
+                        if app.get_window_fullscreen() != fullscreen {
+                            app.set_window_fullscreen(fullscreen);
+                        }
+                    }
+                });
             }
         }
     });
@@ -781,6 +797,18 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
     }));
     app.on_start_reveal_recent(on_window!(|state, path: SharedString| {
         state.handle(Msg::Start(StartMsg::RevealRecent(path.to_string())));
+    }));
+    app.on_start_rename_recent(on_window!(|state, path: SharedString| {
+        state.handle(Msg::Start(StartMsg::RenameRecent(path.to_string())));
+    }));
+    app.on_start_rename_edited(on_window!(|state, name: SharedString| {
+        state.handle(Msg::Start(StartMsg::RenameEdited(name.to_string())));
+    }));
+    app.on_start_rename_confirm(on_window!(|state| {
+        state.handle(Msg::Start(StartMsg::RenameConfirm));
+    }));
+    app.on_start_rename_cancel(on_window!(|state| {
+        state.handle(Msg::Start(StartMsg::RenameCancel));
     }));
     app.on_start_search_edited(on_window!(|state, query: SharedString| {
         state.handle(Msg::Start(StartMsg::SearchEdited(query.to_string())));
@@ -2628,6 +2656,9 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
     app.on_menu_opened(on_window!(|state, index: i32| {
         state.open_menu = index;
         state.menu_bar_token += 1;
+    }));
+    app.on_menu_dismissed(on_window!(|state| {
+        state.open_menu = -1;
     }));
     app.on_app_menu_selected({
         move |action| {

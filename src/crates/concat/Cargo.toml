@@ -91,6 +91,16 @@ libc = "0.2"
 # `leave` in lib.rs.
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"
+# Move to Trash for a recent project, through NSFileManager; see
+# `platform::trash`. The version Slint's winit backend already builds, so
+# nothing new is downloaded for it.
+objc2-foundation = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSError",
+    "NSFileManager",
+    "NSString",
+    "NSURL",
+] }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 slint = { version = "1.18", default-features = false, features = [

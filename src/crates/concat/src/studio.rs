@@ -2385,6 +2385,10 @@ pub enum Confirm {
     /// this a disk unplugged, full or read-only made a window that would
     /// never close.
     QuitWithoutSaving { error: String },
+    /// Moving a recent project's folder to the Trash, and off the list -
+    /// or, where there is no Trash (see `platform::CAN_TRASH`), only off
+    /// the list.
+    TrashProject { path: String, name: String },
 }
 
 /// Each rewritten link as "Old → New", the new one by its package's name.
@@ -2680,6 +2684,7 @@ impl Studio {
                 self.release_project();
                 slint::quit_event_loop().ok();
             }
+            Some(Confirm::TrashProject { path, name }) => self.trash_project(&path, &name),
             None => {}
         }
     }
@@ -2721,7 +2726,51 @@ impl Studio {
                 message: tf("close.unsavedMessage", &[error]).into(),
                 action: t("close.quitWithoutSaving").into(),
             },
+            Confirm::TrashProject { name, .. } if platform::CAN_TRASH => crate::ui::ConfirmData {
+                open: true,
+                title: t("start.trashTitle").into(),
+                message: tf("start.trashMessage", &[name]).into(),
+                action: t("start.moveToTrash").into(),
+            },
+            Confirm::TrashProject { name, .. } => crate::ui::ConfirmData {
+                open: true,
+                title: t("start.removeTitle").into(),
+                message: tf("start.removeMessage", &[name]).into(),
+                action: t("start.removeFromList").into(),
+            },
         }
+    }
+
+    /// The project at `path` is open in this window: renaming or trashing
+    /// it from the launch screen would pull its folder out from under it.
+    pub fn is_open_project(&self, path: &str) -> bool {
+        let spelled = |path: &str| path.trim_end_matches(['/', '\\']).to_owned();
+        self.session
+            .as_ref()
+            .is_some_and(|session| spelled(&session.path().to_string()) == spelled(path))
+    }
+
+    /// The answer to the launch screen's Remove: the folder to the Trash
+    /// where there is one, and the project off the list either way.
+    fn trash_project(&mut self, path: &str, name: &str) {
+        if self.is_open_project(path) {
+            self.notify(&t("start.projectIsOpen"), true);
+            return;
+        }
+        if platform::CAN_TRASH
+            && std::path::Path::new(path).exists()
+            && let Err(error) = platform::trash(path)
+        {
+            log::warn!("trash: {path}: {error}");
+            self.notify(&tf("start.trashFailed", &[&error]), true);
+            return;
+        }
+        if let Err(error) = projects::forget(&self.host.dirs.config, path) {
+            self.notify(&error, true);
+        } else if platform::CAN_TRASH {
+            self.notify(&tf("start.trashed", &[&name]), false);
+        }
+        self.recents = projects::recents(&self.host.dirs.config);
     }
 
     pub fn row_track(&self, row: i32) -> Option<&Track> {
