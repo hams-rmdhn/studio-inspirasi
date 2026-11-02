@@ -1,5 +1,5 @@
 # A version tag publishes tested desktop packages for Linux, Windows and macOS.
-name: Clovercut release
+name: Studio Inspirasi release
 'on':
   push:
     tags:
@@ -148,7 +148,7 @@ jobs:
       with:
         tag_name: ${{ needs.check.outputs.tag }}
         target_commitish: ${{ needs.check.outputs.commit }}
-        name: Clovercut ${{ needs.check.outputs.tag }}
+        name: Studio Inspirasi ${{ needs.check.outputs.tag }}
         draft: false
         prerelease: ${{ contains(needs.check.outputs.tag, '-') }}
         body_path: ${{ runner.temp }}/notes.md
