@@ -1709,6 +1709,26 @@ fn knob_range(property: model::KeyProperty) -> (f64, f64) {
     }
 }
 
+/// Where a move or a loop named `kind` sits in its picker's list; -1 for
+/// none or a name the app does not know.
+fn motion_place(kind: Option<&str>, looping: bool) -> i32 {
+    let Some(kind) = kind else { return -1 };
+    let place = if looping {
+        concat_core::motion::Cycle::parse(kind).and_then(|found| {
+            concat_core::motion::Cycle::ALL
+                .iter()
+                .position(|c| *c == found)
+        })
+    } else {
+        concat_core::motion::Move::parse(kind).and_then(|found| {
+            concat_core::motion::Move::ALL
+                .iter()
+                .position(|m| *m == found)
+        })
+    };
+    place.map_or(-1, |place| place as i32)
+}
+
 /// The keyable property a batch edits relative to the first clip, for the
 /// fields that place a picture; None for every field a batch sets outright.
 fn relative_property(field: ClipField) -> Option<model::KeyProperty> {
@@ -1880,6 +1900,12 @@ fn clip_commands(id: &str, before: &Clip, after: &Clip, magnetic: bool) -> Vec<C
     }
     if after.mask != before.mask {
         patch.mask = Some(after.mask);
+    }
+    if after.visual_motion != before.visual_motion {
+        patch.visual_motion = Some(after.visual_motion);
+    }
+    if after.motion != before.motion {
+        patch.motion = Some(after.motion.clone());
     }
     commands.extend(key_commands(id, before, after));
     if after.text != before.text {
@@ -5077,56 +5103,6 @@ impl Studio {
         });
     }
 
-    /// Set preset motion without replacing any transform or paint keyframes.
-    pub fn visual_motion(&mut self, entrance: i32, exit: i32, duration: f32) {
-        let Some(id) = self.sole_selection() else {
-            return;
-        };
-        let Some(clip) = self.clip(&id) else {
-            return;
-        };
-        if !clip.kind.is_visual() || self.locked(&clip.track_id) || !duration.is_finite() {
-            return;
-        }
-        let motion = model::CaptionMotion {
-            entrance: entrance.clamp(0, 3) as u8,
-            exit: exit.clamp(0, 3) as u8,
-            duration: f64::from(duration),
-        }
-        .tidy();
-        self.apply(Command::UpdateClip {
-            clip_id: id,
-            patch: ClipPatch {
-                visual_motion: Some(motion),
-                ..Default::default()
-            },
-        });
-    }
-
-    pub fn caption_motion(&mut self, entrance: i32, exit: i32, duration: f32) {
-        self.flush_commit();
-        let commands = self
-            .caption_style_targets()
-            .into_iter()
-            .filter_map(|id| {
-                let mut style = self.clip(&id)?.text.clone()?;
-                style.caption_motion = model::CaptionMotion {
-                    entrance: entrance.clamp(0, 3) as u8,
-                    exit: exit.clamp(0, 3) as u8,
-                    duration: f64::from(duration.clamp(0.05, 5.0)),
-                };
-                Some(Command::UpdateClip {
-                    clip_id: id,
-                    patch: concat_project::commands::ClipPatch {
-                        text: Some(Some(style)),
-                        ..Default::default()
-                    },
-                })
-            })
-            .collect();
-        self.apply(Command::Batch { commands });
-    }
-
     fn caption_style_targets(&self) -> Vec<String> {
         concat_project::captions::scoped_targets(
             self.timeline(),
@@ -6617,6 +6593,13 @@ impl Studio {
                 | ClipField::BackgroundRadius
                 | ClipField::BackgroundPaddingX
                 | ClipField::BackgroundPaddingY
+                | ClipField::MotionIn
+                | ClipField::MotionInSeconds
+                | ClipField::MotionOut
+                | ClipField::MotionOutSeconds
+                | ClipField::MotionLoop
+                | ClipField::MotionLoopSeconds
+                | ClipField::MotionLoopAmount
         ) {
             self.caption_style_targets()
         } else {
@@ -6796,6 +6779,75 @@ impl Studio {
                     if let Some(property) = Self::key_property_of(field) {
                         write_keyable(clip, property, model::ClipMask::clamp(property, value), at);
                     }
+                }
+                ClipField::MotionIn
+                | ClipField::MotionInSeconds
+                | ClipField::MotionOut
+                | ClipField::MotionOutSeconds
+                | ClipField::MotionLoop
+                | ClipField::MotionLoopSeconds
+                | ClipField::MotionLoopAmount => {
+                    let mut motion = clip.motion.clone().unwrap_or_default();
+                    let place = value.round() as i64;
+                    let moving = |place: i64| {
+                        usize::try_from(place)
+                            .ok()
+                            .and_then(|place| concat_core::motion::Move::ALL.get(place))
+                            .map(|kind| kind.name().to_owned())
+                    };
+                    match field {
+                        ClipField::MotionIn => {
+                            // Replacing a phase in the one animation panel
+                            // also replaces its saved legacy preset.
+                            clip.visual_motion.entrance = 0;
+                            text.caption_motion.entrance = 0;
+                            let seconds = motion.enter.as_ref().map_or(0.5, |m| m.seconds);
+                            motion.enter =
+                                moving(place).map(|kind| model::ClipMove { kind, seconds });
+                        }
+                        ClipField::MotionOut => {
+                            clip.visual_motion.exit = 0;
+                            text.caption_motion.exit = 0;
+                            let seconds = motion.exit.as_ref().map_or(0.5, |m| m.seconds);
+                            motion.exit =
+                                moving(place).map(|kind| model::ClipMove { kind, seconds });
+                        }
+                        ClipField::MotionLoop => {
+                            let (seconds, amount) = motion
+                                .cycle
+                                .as_ref()
+                                .map_or((1.0, 1.0), |m| (m.seconds, m.amount));
+                            motion.cycle = usize::try_from(place)
+                                .ok()
+                                .and_then(|place| concat_core::motion::Cycle::ALL.get(place))
+                                .map(|kind| model::ClipLoop {
+                                    kind: kind.name().to_owned(),
+                                    seconds,
+                                    amount,
+                                });
+                        }
+                        ClipField::MotionInSeconds => {
+                            if let Some(m) = motion.enter.as_mut() {
+                                m.seconds = value;
+                            }
+                        }
+                        ClipField::MotionOutSeconds => {
+                            if let Some(m) = motion.exit.as_mut() {
+                                m.seconds = value;
+                            }
+                        }
+                        ClipField::MotionLoopSeconds => {
+                            if let Some(m) = motion.cycle.as_mut() {
+                                m.seconds = value;
+                            }
+                        }
+                        _ => {
+                            if let Some(m) = motion.cycle.as_mut() {
+                                m.amount = value;
+                            }
+                        }
+                    }
+                    clip.motion = motion.tidy();
                 }
                 ClipField::Volume => {
                     write_keyable(clip, model::KeyProperty::Volume, value.max(0.0), at)
@@ -11594,16 +11646,6 @@ impl Studio {
                 })
                 .unwrap_or_default();
             sync(&models.clip_luts, luts);
-            let motion = self
-                .sole_selection()
-                .and_then(|id| self.clip(&id))
-                .filter(|clip| clip.kind.is_visual())
-                .map(|clip| clip.visual_motion)
-                .unwrap_or_default();
-            let motion_ui = app.global::<crate::ui::VideoMotion>();
-            motion_ui.set_entrance(i32::from(motion.entrance));
-            motion_ui.set_exit(i32::from(motion.exit));
-            motion_ui.set_duration(motion.duration as f32);
             sync(&models.applied_visual, visual);
             sync(&models.visual_params, visual_params);
             sync(
@@ -13014,6 +13056,47 @@ impl Studio {
             mask_rotation: shown(clip, model::KeyProperty::MaskRotation, at) as f32,
             mask_roundness: shown(clip, model::KeyProperty::MaskRoundness, at) as f32,
             mask_feather: shown(clip, model::KeyProperty::MaskFeather, at) as f32,
+            motion_in: motion_place(
+                clip.motion
+                    .as_ref()
+                    .and_then(|m| m.enter.as_ref())
+                    .map(|m| m.kind.as_str()),
+                false,
+            ),
+            motion_in_seconds: clip
+                .motion
+                .as_ref()
+                .and_then(|m| m.enter.as_ref())
+                .map_or(0.5, |m| m.seconds) as f32,
+            motion_out: motion_place(
+                clip.motion
+                    .as_ref()
+                    .and_then(|m| m.exit.as_ref())
+                    .map(|m| m.kind.as_str()),
+                false,
+            ),
+            motion_out_seconds: clip
+                .motion
+                .as_ref()
+                .and_then(|m| m.exit.as_ref())
+                .map_or(0.5, |m| m.seconds) as f32,
+            motion_loop: motion_place(
+                clip.motion
+                    .as_ref()
+                    .and_then(|m| m.cycle.as_ref())
+                    .map(|m| m.kind.as_str()),
+                true,
+            ),
+            motion_loop_seconds: clip
+                .motion
+                .as_ref()
+                .and_then(|m| m.cycle.as_ref())
+                .map_or(1.0, |m| m.seconds) as f32,
+            motion_loop_amount: clip
+                .motion
+                .as_ref()
+                .and_then(|m| m.cycle.as_ref())
+                .map_or(1.0, |m| m.amount) as f32,
             fade_in: clip.fade_in as f32,
             fade_out: clip.fade_out as f32,
             content: text.content.as_str().into(),
@@ -15629,6 +15712,77 @@ mod tests {
         );
         assert_eq!(place_in(&after, 2.5), 0.25);
         assert_eq!(place_in(&after, 12.0), 1.0, "held to the end");
+    }
+
+    /// The Animate cards write the clip's motion into the echo; a commit
+    /// that had no command for motion dropped the pick, and the card sprang
+    /// back to None. Picked, changed and taken off, each lands.
+    #[test]
+    fn a_motion_picked_in_the_inspector_is_committed() {
+        use concat_project::model::{Clip, ClipKind as Kind, ClipMotion, ClipMove};
+        let before = Clip::blank("c1", "t1", Kind::Video, "m1", 0.0, 4.0);
+        let mut after = before.clone();
+        after.motion = Some(ClipMotion {
+            enter: Some(ClipMove {
+                kind: "pop".to_owned(),
+                seconds: 0.5,
+            }),
+            ..ClipMotion::default()
+        });
+        let patched = |commands: Vec<Command>| {
+            commands.into_iter().find_map(|command| match command {
+                Command::UpdateClip { patch, .. } => patch.motion,
+                _ => None,
+            })
+        };
+        assert_eq!(
+            patched(super::clip_commands("c1", &before, &after, false)),
+            Some(after.motion.clone())
+        );
+        assert_eq!(
+            patched(super::clip_commands("c1", &after, &before, false)),
+            Some(None)
+        );
+    }
+
+    #[test]
+    fn replacing_legacy_motion_commits_both_formats_in_one_patch() {
+        use concat_project::model::{CaptionMotion, Clip, ClipKind as Kind, ClipMotion, ClipMove};
+        let mut before = Clip::blank("c1", "t1", Kind::Video, "m1", 0.0, 4.0);
+        before.visual_motion = CaptionMotion {
+            entrance: 1,
+            exit: 2,
+            duration: 0.4,
+        };
+        let mut after = before.clone();
+        after.visual_motion.entrance = 0;
+        after.motion = Some(ClipMotion {
+            enter: Some(ClipMove {
+                kind: "pop".into(),
+                seconds: 0.5,
+            }),
+            ..Default::default()
+        });
+        for (from, to) in [(&before, &after), (&after, &before)] {
+            let updates: Vec<_> = super::clip_commands("c1", from, to, false)
+                .into_iter()
+                .filter_map(|command| match command {
+                    Command::UpdateClip { patch, .. } => Some(patch),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(
+                updates.len(),
+                1,
+                "one undoable update for both animation formats"
+            );
+            assert_eq!(updates[0].motion, Some(to.motion.clone()));
+            assert_eq!(updates[0].visual_motion, Some(to.visual_motion));
+            assert_eq!(
+                to.visual_motion.exit, 2,
+                "the untouched old exit is preserved"
+            );
+        }
     }
 
     /// A batch level lands on every clip as the inspector commits it - one

@@ -176,6 +176,27 @@ small addition to them, with minimal wiring in upstream files:
      it if the app icon changes. Used by the title bar and the launch
      screen's greeting so they align with the page.
 
+6. **Animate panel ported from upstream (0.1.12)**
+   - Upstream's ClipMotion (14 moves, 9 loops) replaces the fork's old
+     4-preset caption/video motion panels; `CaptionMotion` stays in the
+     model so older projects keep playing. Multi-mask, which upstream
+     ships in the same diff, is not taken.
+   - Touch points: `src/crates/concat-core/src/motion.rs` (new, verbatim),
+     `concat-core/src/timeline.rs` (`Clip::motion`, `pose_at`),
+     `concat-project/src/model.rs` (`ClipMotion`, `ClipMove`, `ClipLoop`),
+     `concat-project/src/commands/{mod,properties}.rs` (`ClipPatch.motion`),
+     `concat-export/src/{lib,flatten,resolve}.rs`,
+     `concat-host/src/titles.rs`, `src/crates/concat/src/motion_tiles.rs`
+     (new), `src/crates/concat/src/studio.rs` (`motion_place`,
+     `ClipField::Motion*`, `clip_commands` diff of `motion`),
+     `ui/inspector/motion-picker.slint` + `ui/assets/motion-still.jpg`
+     (new), `ui/inspector/clip-inspector.slint` (`AnimatePanel`),
+     `ui/workspace/config-pane.slint`, `ui/timeline/model.slint`,
+     `ui/app.slint`, and the `motion.*` lines in every locale.
+   - Removed: `ui/inspector/video-motion-panel.slint`,
+     `ui/inspector/caption-motion-panel.slint`. A later upstream merge
+     takes upstream's side for all of the above.
+
 ## Signing and releases
 
 Local builds are ad-hoc signed. To publish a DMG others can install

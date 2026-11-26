@@ -47,6 +47,7 @@ mod i18n;
 mod ios;
 mod keymap;
 mod meters;
+mod motion_tiles;
 mod platform;
 /// What a phone's own crate installs before the window runs: the way to
 /// the system's file picker, and where a finished export is put so the
@@ -351,6 +352,7 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
     panes::gl_transitions::start(&mut studio);
     let dark = studio.prefs.dark.unwrap_or(true);
     app.global::<Theme>().set_dark(dark);
+    motion_tiles::install(&app);
     // The accent is remembered by name and the names live on the Theme
     // global, so the index is looked up there rather than kept in Rust too.
     // A remembered hex is a colour picked by hand, which is the slot past
@@ -1115,11 +1117,6 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
     luts.on_intensity(on_window!(|state, index: i32, value: f32| {
         state.chain_set_param(false, index, concat_effects::catalogue::INTENSITY, value);
     }));
-    app.global::<crate::ui::VideoMotion>().on_set(on_window!(
-        |state, entrance: i32, exit: i32, duration: f32| {
-            state.visual_motion(entrance, exit, duration);
-        }
-    ));
     luts.on_commit(on_window!(|state| {
         state.clip_commit();
     }));
@@ -2434,11 +2431,6 @@ fn start(project: Option<std::path::PathBuf>, smoke: bool) -> Result<(), slint::
     }));
 
     let caption_library = app.global::<crate::ui::CaptionsLibrary>();
-    caption_library.on_motion(on_lanes!(
-        |state, entrance: i32, exit: i32, duration: f32| {
-            state.caption_motion(entrance, exit, duration);
-        }
-    ));
     caption_library.on_place_source(on_lanes!(|state, id: SharedString| {
         state.place_at_playhead(&format!("caption:{id}"));
     }));

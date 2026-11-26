@@ -361,6 +361,11 @@ impl Titles {
                     muted: true,
                     volume: 0.0,
                     animation: concat_export::flatten::export_keys(clip),
+                    // What a media clip carries in the flattening and a
+                    // title or a shape would otherwise lose here, starting
+                    // from blank: the Animate moves. Without them no In,
+                    // Out or Loop played on any title, caption or shape.
+                    motion: clip.motion.clone(),
                     flip_h: clip.flip_h,
                     flip_v: clip.flip_v,
                     blend: clip.blend.clone(),
