@@ -72,7 +72,7 @@ jobs:
           p.write_text(json.dumps(data, indent=2) + '\n')
           PY
           (cd bundles && sha256sum Clovercut-* manifest.json > SHA256SUMS && sha256sum --check SHA256SUMS)
-      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3
         with:
           tag_name: v0.1.5
           name: Clovercut v0.1.5
