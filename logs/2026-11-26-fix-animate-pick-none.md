@@ -30,3 +30,20 @@ Ini satu titik sentuh upstream (studio.rs ~1986) yang terlewat saat port.
   fitur yang memang belum di-port).
 - `caption_style_targets` meneruskan seleksi apa adanya untuk klip
   non-caption → klip video/gambar/shape ikut ter-target.
+
+## Rilis
+
+- Commit `77aadfa0` di `main`, tag pre-release `v0.1.11-animate.1`
+  (versi tetap 0.1.11 agar cocok dengan DMG lokal yang sudah dibuat;
+  kenaikan ke 0.1.12 dibatalkan untuk menghindari rebuild ~1,5 jam).
+- Push tag memicu workflow "Studio Inspirasi release" (#7) → rilis GitHub
+  ditandai prerelease. Body rilis diambil dari `docs/releases/0.1.11.md`
+  (workflow memakai versi Cargo); `docs/releases/0.1.12.md` berisi catatan
+  Animate untuk ditempel manual / dipakai di rilis 0.1.12 nanti.
+- DMG Monterey (`Studio-Inspirasi-0.1.11-macos-x86_64.dmg`, SHA-256
+  `04c4da17108e75bd5a928b8359c287833c858e16191507511bb0008a36235cc4`)
+  diunggah manual — `gh` tidak terpasang di mesin ini.
+- Test regresi `a_motion_picked_in_the_inspector_is_committed` dan
+  `replacing_legacy_motion_commits_both_formats_in_one_patch` belum
+  dijalankan lokal (build test crate `concat` dihentikan); CI "Headless
+  quality checks" berjalan pada commit ini.
